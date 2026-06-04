@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../stores/authStore.js';
 
@@ -13,22 +13,27 @@ const NAV = [
   { to: '/admin/config',      label: 'Configuración', icon: '⚙️' },
 ];
 
-function Sidebar({ onClose }) {
+function SidebarContent({ onClose }) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display font-bold text-xl gradient-text">Khaluby</h1>
-            <p className="text-white/30 text-xs mt-0.5">Panel Admin</p>
-          </div>
-          {onClose && (
-            <button onClick={onClose} className="lg:hidden text-white/40 hover:text-white p-1">✕</button>
-          )}
+      <div className="p-5 flex items-center justify-between"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div>
+          <h1 className="font-display font-bold text-xl gradient-text">Khaluby</h1>
+          <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.35)' }}>Panel Admin</p>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(240,244,236,0.60)' }}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -39,37 +44,42 @@ function Sidebar({ onClose }) {
             end={end}
             onClick={onClose}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? 'text-violet-300'
-                  : 'text-white/50 hover:text-white hover:bg-white/5'
+              `flex items-center gap-3 px-4 py-3.5 rounded-xl text-base font-medium transition-all ${
+                isActive ? '' : ''
               }`
             }
             style={({ isActive }) => isActive ? {
-              background: 'rgba(139,92,246,0.15)',
-              border: '1px solid rgba(139,92,246,0.25)',
-            } : {}}
+              background: 'rgba(92,181,22,0.18)',
+              color: '#9de360',
+              border: '1px solid rgba(92,181,22,0.30)',
+            } : {
+              color: 'rgba(240,244,236,0.60)',
+              border: '1px solid transparent',
+            }}
           >
-            <span className="text-base">{icon}</span>
-            {label}
+            <span className="text-xl w-7 text-center">{icon}</span>
+            <span>{label}</span>
           </NavLink>
         ))}
       </nav>
 
-      <div className="p-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-        <div className="flex items-center gap-3 mb-3 px-2">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
-            style={{ background: 'rgba(139,92,246,0.3)', color: '#c4b5fd' }}>
+      <div className="p-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="flex items-center gap-3 px-2 mb-3">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center font-bold flex-shrink-0"
+            style={{ background: 'rgba(92,181,22,0.25)', color: '#9de360' }}
+          >
             {user?.name?.[0]}
           </div>
           <div className="min-w-0">
-            <p className="text-white text-sm font-medium truncate">{user?.name}</p>
-            <p className="text-white/30 text-xs">Admin</p>
+            <p className="text-white font-medium truncate text-sm">{user?.name}</p>
+            <p className="text-xs" style={{ color: 'rgba(240,244,236,0.35)' }}>Administrador</p>
           </div>
         </div>
         <button
           onClick={() => { logout(); navigate('/login'); }}
-          className="w-full text-left text-white/40 hover:text-white/80 text-sm py-2 px-3 rounded-lg hover:bg-white/5 transition-colors"
+          className="w-full text-left py-2.5 px-3 rounded-xl text-sm transition-colors"
+          style={{ color: 'rgba(240,244,236,0.50)', background: 'rgba(255,255,255,0.04)' }}
         >
           🚪 Cerrar sesión
         </button>
@@ -80,55 +90,112 @@ function Sidebar({ onClose }) {
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  // Cerrar sidebar al cambiar de ruta en mobile
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Nombre de la página actual
+  const currentPage = NAV.find(n => {
+    if (n.end) return location.pathname === n.to;
+    return location.pathname.startsWith(n.to);
+  });
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#080b14' }}>
-      {/* Desktop */}
-      <aside className="hidden lg:flex w-64 flex-col fixed h-full z-30"
-        style={{ background: 'rgba(13,17,32,0.8)', borderRight: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)' }}>
-        <Sidebar />
+    <div className="min-h-screen flex" style={{ background: '#0c1409' }}>
+
+      {/* ===== DESKTOP SIDEBAR ===== */}
+      <aside
+        className="hidden lg:flex w-64 flex-col fixed h-full z-30"
+        style={{
+          background: 'rgba(13,25,9,0.95)',
+          borderRight: '1px solid rgba(92,181,22,0.10)',
+          backdropFilter: 'blur(20px)',
+        }}
+      >
+        <SidebarContent />
       </aside>
 
-      {/* Mobile overlay */}
+      {/* ===== MOBILE: overlay + drawer ===== */}
       <AnimatePresence>
         {sidebarOpen && (
           <>
+            {/* Fondo oscuro */}
             <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="fixed inset-0 z-40 lg:hidden"
-              style={{ background: 'rgba(0,0,0,0.6)' }}
+              style={{ background: 'rgba(0,0,0,0.75)' }}
               onClick={() => setSidebarOpen(false)}
             />
-            <motion.aside
-              initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed left-0 top-0 h-full w-72 z-50 lg:hidden flex flex-col"
-              style={{ background: '#0d1120', borderRight: '1px solid rgba(255,255,255,0.05)' }}
+            {/* Drawer */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="fixed left-0 top-0 h-full z-50 lg:hidden"
+              style={{
+                width: '80vw',
+                maxWidth: '300px',
+                background: '#0d1a0a',
+                borderRight: '1px solid rgba(92,181,22,0.15)',
+              }}
             >
-              <Sidebar onClose={() => setSidebarOpen(false)} />
-            </motion.aside>
+              <SidebarContent onClose={() => setSidebarOpen(false)} />
+            </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* Main */}
+      {/* ===== CONTENIDO PRINCIPAL ===== */}
       <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
-        <header className="lg:hidden sticky top-0 z-30 px-4 py-3 flex items-center gap-3"
-          style={{ background: 'rgba(13,17,32,0.9)', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)' }}>
+
+        {/* Topbar mobile */}
+        <header
+          className="lg:hidden sticky top-0 z-30 flex items-center gap-3 px-4"
+          style={{
+            height: '56px',
+            background: 'rgba(12,20,9,0.95)',
+            borderBottom: '1px solid rgba(92,181,22,0.10)',
+            backdropFilter: 'blur(20px)',
+          }}
+        >
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-white/60 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(240,244,236,0.70)' }}
           >
-            ☰
+            <svg width="18" height="14" viewBox="0 0 18 14" fill="currentColor">
+              <rect y="0" width="18" height="2" rx="1"/>
+              <rect y="6" width="14" height="2" rx="1"/>
+              <rect y="12" width="18" height="2" rx="1"/>
+            </svg>
           </button>
-          <h1 className="font-display font-bold gradient-text">Khaluby Admin</h1>
+
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold gradient-text text-base truncate">
+              {currentPage?.label || 'Admin'}
+            </p>
+          </div>
+
+          <div
+            className="text-xs px-2 py-1 rounded-full"
+            style={{ background: 'rgba(92,181,22,0.15)', color: '#9de360' }}
+          >
+            Admin
+          </div>
         </header>
 
+        {/* Página */}
         <motion.main
           key={location.pathname}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.18 }}
           className="flex-1 p-4 lg:p-8"
         >
           <Outlet />
