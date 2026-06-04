@@ -28,9 +28,7 @@ export const io = new Server(httpServer, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
-  // En producción (Vercel) solo polling — en local también WebSocket
   transports: isProduction ? ['polling'] : ['websocket', 'polling'],
-  // Vercel tiene timeout de 30s — reducir heartbeat
   pingTimeout: 20000,
   pingInterval: 10000,
 });
@@ -46,14 +44,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Saltear aviso de ngrok/cloudflare
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
   next();
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', app: 'Despensa Khaluby API', env: process.env.NODE_ENV });
+  res.json({ status: 'ok', app: 'Despensa Khaluby API' });
 });
 
 app.use('/api/auth', authRouter);
@@ -68,8 +65,13 @@ app.use(errorHandler);
 
 setupSocketIO(io);
 
-const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => {
-  console.log(`🛒 Despensa Khaluby API → http://localhost:${PORT}`);
-  console.log(`📡 Socket.io modo: ${isProduction ? 'polling' : 'websocket'}`);
-});
+// Solo escuchar en local — Vercel maneja esto solo
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3001;
+  httpServer.listen(PORT, () => {
+    console.log(`🛒 Despensa Khaluby API → http://localhost:${PORT}`);
+  });
+}
+
+// Exportar para Vercel
+export default app;
