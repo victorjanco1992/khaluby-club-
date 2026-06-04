@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model StoreConfig {
+  id    String @id @default("default")
+  key   String @unique
+  value String
+
+  @@map("store_config")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  name              String
+  dni               String    @unique
+  phone             String
+  email             String?   @unique
+  password          String
+  qrCode            String    @unique
+  role              Role      @default(CLIENT)
+  isActive          Boolean   @default(true)
+  points            Int       @default(0)
+  totalSpent        Float     @default(0)
+  lastRedemptionAt  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  purchases      Purchase[]
+  raffleEntries  RaffleEntry[]
+  redemptions    Redemption[]
+  notifications  Notification[]
+
+  @@map("users")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model Purchase {
+  id            String      @id @default(uuid())
+  userId        String
+  amount        Float
+  points        Int
+  numbers       Int[]
+  paymentMethod PaymentMethod @default(TRANSFER)
+  notes         String?
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("purchases")
+}
+
+model Raffle {
+  id           String       @id @default(uuid())
+  title        String
+  description  String?
+  prize        String
+  prizeImage   String?
+  status       RaffleStatus @default(PENDING)
+  drawDate     DateTime?
+  winnerId     String?
+  winnerNumber Int?
+  totalNumbers Int          @default(0)
+  isPublic     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  entries RaffleEntry[]
+
+  @@map("raffles")
+}
+
+model RaffleEntry {
+  id         String  @id @default(uuid())
+  raffleId   String
+  userId     String
+  number     Int
+  purchaseId String?
+
+  raffle Raffle @relation(fields: [raffleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([raffleId, number])
+  @@map("raffle_entries")
+}
+
+model Reward {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  image       String?
+  pointsCost  Int
+  stock       Int      @default(-1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  redemptions Redemption[]
+
+  @@map("rewards")
+}
+
+model Redemption {
+  id        String           @id @default(uuid())
+  userId    String
+  rewardId  String
+  points    Int
+  status    RedemptionStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  reward Reward @relation(fields: [rewardId], references: [id])
+
+  @@map("redemptions")
+}
+
+model Promotion {
+  id          String    @id @default(uuid())
+  title       String
+  description String
+  category    String
+  image       String?
+  isVisible   Boolean   @default(true)
+  validFrom   DateTime?
+  validTo     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("promotions")
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+}
+
+enum RaffleStatus {
+  PENDING
+  ACTIVE
+  DRAWING
+  FINISHED
+}
+
+enum RedemptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  WINNER
+  RAFFLE_RESULT
+  POINTS
+  GENERAL
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+}

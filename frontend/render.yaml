@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: despensa-khaluby-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://TU-BACKEND.vercel.app
+      - key: VITE_SOCKET_URL
+        value: https://TU-BACKEND.vercel.app
