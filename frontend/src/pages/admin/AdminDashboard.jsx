@@ -3,22 +3,19 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api.js';
 
-function StatCard({ icon, label, value, sub, color = 'text-white', delay = 0 }) {
+function StatCard({ icon, label, value, color, delay = 0 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className="card p-5"
+      className="card p-4"
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-white/40 text-sm">{label}</p>
-          <p className={`font-mono font-bold text-3xl mt-1 ${color}`}>{value}</p>
-          {sub && <p className="text-white/25 text-xs mt-1">{sub}</p>}
-        </div>
-        <span className="text-3xl">{icon}</span>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm" style={{ color: 'rgba(240,244,236,0.55)' }}>{label}</p>
+        <span className="text-2xl">{icon}</span>
       </div>
+      <p className="font-mono font-bold text-2xl" style={{ color }}>{value}</p>
     </motion.div>
   );
 }
@@ -32,11 +29,11 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 w-48 bg-dark-700 rounded-xl animate-pulse" />
-        <div className="grid grid-cols-4 gap-4">
+      <div className="space-y-4">
+        <div className="h-8 w-48 rounded-xl animate-pulse" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="grid grid-cols-2 gap-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-28 bg-dark-800 rounded-2xl animate-pulse" />
+            <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
           ))}
         </div>
       </div>
@@ -46,99 +43,139 @@ export default function AdminDashboard() {
   const stats = data || {};
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Título */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="font-display font-bold text-3xl">Dashboard</h1>
-          <p className="text-white/40 mt-1">Resumen del sistema Despensa Khaluby</p>
+          <h1 className="font-display font-bold text-2xl text-white">Dashboard</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'rgba(240,244,236,0.45)' }}>
+            Resumen del sistema
+          </p>
         </div>
-        <div className="flex gap-3">
-          <Link to="/admin/compras" className="btn-primary">
+        <div className="flex gap-2 flex-wrap">
+          <Link to="/admin/compras" className="btn-primary text-sm py-2.5 px-4">
             🛒 Cargar compra
           </Link>
-          <Link to="/admin/sorteos" className="btn-secondary">
+          <Link to="/admin/sorteos" className="btn-secondary text-sm py-2.5 px-4">
             🎰 Sorteos
           </Link>
         </div>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon="👥" label="Clientes activos" value={stats.totalClients?.toLocaleString() || '0'} color="text-blue-400" delay={0} />
-        <StatCard icon="💰" label="Total facturado" value={`$${(stats.totalRevenue || 0).toLocaleString()}`} color="text-green-400" delay={0.05} />
-        <StatCard icon="⭐" label="Puntos entregados" value={(stats.totalPoints || 0).toLocaleString()} color="text-khaluby-400" delay={0.1} />
-        <StatCard icon="🎁" label="Canjes realizados" value={stats.totalRedemptions?.toLocaleString() || '0'} color="text-purple-400" delay={0.15} />
+      {/* Stats — 2 columnas en mobile, 4 en desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard icon="👥" label="Clientes" value={stats.totalClients?.toLocaleString() || '0'} color="#9de360" delay={0} />
+        <StatCard icon="💰" label="Facturado" value={`$${(stats.totalRevenue || 0).toLocaleString()}`} color="#6ee7b7" delay={0.05} />
+        <StatCard icon="⭐" label="Puntos" value={(stats.totalPoints || 0).toLocaleString()} color="#fde68a" delay={0.1} />
+        <StatCard icon="🎁" label="Canjes" value={stats.totalRedemptions?.toLocaleString() || '0'} color="#c4b5fd" delay={0.15} />
       </div>
 
-      {/* Active raffle */}
+      {/* Sorteo activo */}
       {stats.activeRaffle && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-          <div className="card p-6 border border-green-500/20">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <h3 className="font-semibold text-green-400">Sorteo Activo</h3>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="card p-4"
+          style={{ borderColor: 'rgba(92,181,22,0.25)' }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#5cb516' }} />
+            <p className="text-sm font-semibold" style={{ color: '#9de360' }}>Sorteo Activo</p>
+          </div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-white truncate">{stats.activeRaffle.title}</h3>
+              <p className="text-sm mt-0.5" style={{ color: 'rgba(240,244,236,0.50)' }}>
+                {stats.activeRaffle._count?.entries || 0} participantes
+              </p>
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-display font-bold text-xl">{stats.activeRaffle.title}</h4>
-                <p className="text-white/40 text-sm mt-1">
-                  {stats.activeRaffle._count?.entries || 0} participantes registrados
-                </p>
-              </div>
-              <Link
-                to={`/admin/sorteos/${stats.activeRaffle.id}/realizar`}
-                className="btn-primary"
-              >
-                🎰 Realizar sorteo
-              </Link>
-            </div>
+            <Link
+              to={`/admin/sorteos/${stats.activeRaffle.id}/realizar`}
+              className="btn-primary text-sm py-2.5 px-5 flex-shrink-0"
+            >
+              🎰 Sortear
+            </Link>
           </div>
         </motion.div>
       )}
 
-      {/* Recent purchases */}
+      {/* Compras recientes */}
       {stats.recentPurchases?.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display font-semibold text-xl">Últimas compras</h3>
-            <Link to="/admin/compras" className="text-khaluby-400 text-sm hover:text-khaluby-300">Ver todas →</Link>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-white">Últimas compras</h3>
+            <Link to="/admin/compras" className="text-sm" style={{ color: '#9de360' }}>
+              Ver todas →
+            </Link>
           </div>
+
           <div className="card overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/5">
-                  <th className="px-5 py-3 text-left text-white/40 text-xs font-medium">Cliente</th>
-                  <th className="px-5 py-3 text-right text-white/40 text-xs font-medium">Monto</th>
-                  <th className="px-5 py-3 text-right text-white/40 text-xs font-medium">Puntos</th>
-                  <th className="px-5 py-3 text-right text-white/40 text-xs font-medium">Números</th>
-                  <th className="px-5 py-3 text-right text-white/40 text-xs font-medium">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.recentPurchases.map((purchase, i) => (
-                  <tr key={purchase.id} className="border-b border-white/5 last:border-0 hover:bg-white/2 transition-colors">
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-sm">{purchase.user.name}</p>
-                      <p className="text-white/30 text-xs">{purchase.user.dni}</p>
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-green-400 font-medium">
-                      ${purchase.amount.toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-khaluby-400 text-sm">
-                      +{purchase.points}
-                    </td>
-                    <td className="px-5 py-3 text-right text-white/40 text-sm">
-                      {purchase.numbers?.length || 0}
-                    </td>
-                    <td className="px-5 py-3 text-right text-white/30 text-xs">
-                      {new Date(purchase.createdAt).toLocaleString('es-AR', {
-                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+            {/* Mobile: cards apiladas */}
+            <div className="lg:hidden divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+              {stats.recentPurchases.map(p => (
+                <div key={p.id} className="p-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-white text-sm truncate">{p.user.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.40)' }}>
+                      {new Date(p.createdAt).toLocaleString('es-AR', {
+                        day: 'numeric', month: 'short',
+                        hour: '2-digit', minute: '2-digit',
                       })}
-                    </td>
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-mono font-bold text-sm" style={{ color: '#6ee7b7' }}>
+                      ${p.amount.toLocaleString()}
+                    </p>
+                    <p className="text-xs font-mono" style={{ color: '#fde68a' }}>
+                      +{p.points} pts
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: tabla */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    {['Cliente', 'Monto', 'Puntos', 'Números', 'Fecha'].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                        style={{ color: 'rgba(240,244,236,0.35)' }}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {stats.recentPurchases.map(p => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td className="px-5 py-3">
+                        <p className="text-sm font-medium text-white">{p.user.name}</p>
+                        <p className="text-xs" style={{ color: 'rgba(240,244,236,0.35)' }}>{p.user.dni}</p>
+                      </td>
+                      <td className="px-5 py-3 font-mono font-medium text-sm" style={{ color: '#6ee7b7' }}>
+                        ${p.amount.toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3 font-mono font-bold text-sm" style={{ color: '#fde68a' }}>
+                        +{p.points}
+                      </td>
+                      <td className="px-5 py-3 text-sm" style={{ color: '#9de360' }}>
+                        {p.numbers?.length > 0 ? `+${p.numbers.length}` : '—'}
+                      </td>
+                      <td className="px-5 py-3 text-xs" style={{ color: 'rgba(240,244,236,0.35)' }}>
+                        {new Date(p.createdAt).toLocaleString('es-AR', {
+                          day: 'numeric', month: 'short',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </motion.div>
       )}
