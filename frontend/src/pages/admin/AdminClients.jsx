@@ -11,7 +11,7 @@ function EditClientModal({ client, onClose, onSaved }) {
     email: client.email || '',
     points: client.points,
   });
-  const [tab, setTab] = useState('info'); // 'info' | 'password'
+  const [tab, setTab] = useState('info');
   const [newPassword, setNewPassword] = useState('');
 
   const editMutation = useMutation({
@@ -23,7 +23,7 @@ function EditClientModal({ client, onClose, onSaved }) {
   const resetPasswordMutation = useMutation({
     mutationFn: (pwd) => api.post(`/api/admin/clients/${client.id}/reset-password`, { newPassword: pwd || undefined }),
     onSuccess: (res) => { toast.success(res.data.message); setNewPassword(''); },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: () => toast.error('Error'),
   });
 
   const set = (f) => (e) => setForm(p => ({ ...p, [f]: e.target.value }));
@@ -31,34 +31,44 @@ function EditClientModal({ client, onClose, onSaved }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95 }}
-        className="card w-full max-w-md p-6"
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-5"
+        style={{ background: '#0d1a0a', border: '1px solid rgba(92,181,22,0.15)', maxHeight: '90vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
+        {/* Handle bar mobile */}
+        <div className="w-10 h-1 rounded-full mx-auto mb-4 sm:hidden"
+          style={{ background: 'rgba(255,255,255,0.15)' }} />
+
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-display font-bold text-xl">Editar cliente</h3>
-            <p className="text-white/40 text-sm">DNI: {client.dni}</p>
+            <h3 className="font-display font-bold text-xl text-white">Editar cliente</h3>
+            <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.40)' }}>DNI: {client.dni}</p>
           </div>
-          <button onClick={onClose} className="text-white/30 hover:text-white p-2">✕</button>
+          <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(240,244,236,0.60)' }}>
+            ✕
+          </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex bg-white/5 rounded-xl p-1 gap-1 mb-5">
-          {[
-            { key: 'info', label: '👤 Datos' },
-            { key: 'password', label: '🔐 Contraseña' },
-          ].map(({ key, label }) => (
+        <div className="flex rounded-xl p-1 gap-1 mb-4"
+          style={{ background: 'rgba(255,255,255,0.05)' }}>
+          {[{ key: 'info', label: '👤 Datos' }, { key: 'password', label: '🔐 Contraseña' }].map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                tab === key ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'
-              }`}
+              className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all"
+              style={{
+                background: tab === key ? 'rgba(255,255,255,0.10)' : 'transparent',
+                color: tab === key ? 'white' : 'rgba(240,244,236,0.45)',
+              }}
             >
               {label}
             </button>
@@ -66,7 +76,8 @@ function EditClientModal({ client, onClose, onSaved }) {
         </div>
 
         {tab === 'info' && (
-          <form onSubmit={(e) => { e.preventDefault(); editMutation.mutate({ ...form, points: parseInt(form.points) }); }} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); editMutation.mutate({ ...form, points: parseInt(form.points) }); }}
+            className="space-y-4">
             <div>
               <label className="label">Nombre</label>
               <input type="text" className="input" value={form.name} onChange={set('name')} required />
@@ -82,9 +93,8 @@ function EditClientModal({ client, onClose, onSaved }) {
             <div>
               <label className="label">Puntos</label>
               <input type="number" className="input" value={form.points} onChange={set('points')} min="0" />
-              <p className="text-white/25 text-xs mt-1">Podés ajustar manualmente los puntos del cliente</p>
             </div>
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3 pt-1">
               <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
               <button type="submit" className="btn-primary flex-1" disabled={editMutation.isPending}>
                 {editMutation.isPending ? '⏳...' : '✓ Guardar'}
@@ -95,28 +105,29 @@ function EditClientModal({ client, onClose, onSaved }) {
 
         {tab === 'password' && (
           <div className="space-y-4">
-            <div className="card p-4 border border-amber-500/20">
-              <p className="text-amber-400 text-sm font-medium mb-1">⚠️ Resetear al DNI</p>
-              <p className="text-white/50 text-sm">
-                Esto cambiará la contraseña del cliente a su DNI: <span className="font-mono text-white">{client.dni}</span>
+            <div className="p-4 rounded-xl"
+              style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
+              <p className="font-medium text-sm mb-1" style={{ color: '#fde68a' }}>⚠️ Resetear al DNI</p>
+              <p className="text-xs mb-3" style={{ color: 'rgba(240,244,236,0.55)' }}>
+                La nueva contraseña será: <span className="font-mono text-white">{client.dni}</span>
               </p>
               <button
                 onClick={() => resetPasswordMutation.mutate('')}
                 disabled={resetPasswordMutation.isPending}
-                className="mt-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/25 text-sm py-2 px-4 rounded-xl transition-all w-full"
+                className="w-full py-2.5 rounded-xl text-sm font-medium transition-all"
+                style={{ background: 'rgba(245,158,11,0.15)', color: '#fde68a', border: '1px solid rgba(245,158,11,0.25)' }}
               >
                 {resetPasswordMutation.isPending ? '⏳...' : '🔑 Resetear al DNI'}
               </button>
             </div>
-
             <div>
-              <label className="label">O establecer contraseña personalizada</label>
+              <label className="label">O nueva contraseña personalizada</label>
               <input
                 type="text"
                 className="input font-mono"
                 placeholder="Nueva contraseña..."
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={e => setNewPassword(e.target.value)}
               />
             </div>
             {newPassword.length >= 4 && (
@@ -150,119 +161,140 @@ export default function AdminClients() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-clients', debouncedSearch],
-    queryFn: () => api.get(`/api/admin/clients?limit=50${debouncedSearch ? `&search=${debouncedSearch}` : ''}`).then(r => r.data),
+    queryFn: () =>
+      api.get(`/api/admin/clients?limit=50${debouncedSearch ? `&search=${debouncedSearch}` : ''}`).then(r => r.data),
   });
 
   const toggleMutation = useMutation({
     mutationFn: (id) => api.patch(`/api/admin/clients/${id}/toggle`),
-    onSuccess: () => { toast.success('Estado actualizado'); queryClient.invalidateQueries({ queryKey: ['admin-clients'] }); },
+    onSuccess: () => {
+      toast.success('Estado actualizado');
+      queryClient.invalidateQueries({ queryKey: ['admin-clients'] });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/api/admin/clients/${id}`),
-    onSuccess: () => { toast.success('Cliente eliminado'); queryClient.invalidateQueries({ queryKey: ['admin-clients'] }); },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onSuccess: () => {
+      toast.success('Cliente eliminado');
+      queryClient.invalidateQueries({ queryKey: ['admin-clients'] });
+    },
+    onError: () => toast.error('Error al eliminar'),
   });
 
   const clients = data?.users || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display font-bold text-3xl">Clientes</h1>
-          <p className="text-white/40 mt-1">{data?.total || 0} clientes registrados</p>
-        </div>
+    <div className="space-y-5 max-w-2xl mx-auto">
+      <div>
+        <h1 className="font-display font-bold text-2xl text-white">Clientes</h1>
+        <p className="text-sm mt-0.5" style={{ color: 'rgba(240,244,236,0.45)' }}>
+          {data?.total || 0} clientes registrados
+        </p>
       </div>
 
+      {/* Buscador */}
       <div className="relative">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">🔍</span>
-        <input type="text" className="input pl-11" placeholder="Buscar por nombre, DNI o teléfono..." value={search} onChange={handleSearch} />
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg"
+          style={{ color: 'rgba(240,244,236,0.35)' }}>🔍</span>
+        <input
+          type="text"
+          className="input pl-11"
+          placeholder="Buscar por nombre, DNI o teléfono..."
+          value={search}
+          onChange={handleSearch}
+        />
       </div>
 
-      <div className="card overflow-hidden">
-        {isLoading ? (
-          <div className="p-8 text-center text-white/30 animate-pulse">Cargando...</div>
-        ) : clients.length === 0 ? (
-          <div className="p-10 text-center text-white/30">
-            <div className="text-4xl mb-2">👥</div>
-            <p>{debouncedSearch ? 'Sin resultados' : 'No hay clientes'}</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
-              <thead>
-                <tr className="border-b border-white/5 bg-white/2">
-                  <th className="px-5 py-3 text-left text-white/35 text-xs font-medium uppercase tracking-wider">Cliente</th>
-                  <th className="px-4 py-3 text-right text-white/35 text-xs font-medium uppercase tracking-wider">Puntos</th>
-                  <th className="px-4 py-3 text-right text-white/35 text-xs font-medium uppercase tracking-wider">Gastado</th>
-                  <th className="px-4 py-3 text-right text-white/35 text-xs font-medium uppercase tracking-wider">Compras</th>
-                  <th className="px-4 py-3 text-center text-white/35 text-xs font-medium uppercase tracking-wider">Estado</th>
-                  <th className="px-4 py-3 text-center text-white/35 text-xs font-medium uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((client, i) => (
-                  <motion.tr
-                    key={client.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.02 }}
-                    className="border-b border-white/5 last:border-0 hover:bg-white/2 transition-colors"
+      {/* Lista — cards en mobile */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-24 rounded-2xl animate-pulse"
+              style={{ background: 'rgba(255,255,255,0.04)' }} />
+          ))}
+        </div>
+      ) : clients.length === 0 ? (
+        <div className="card p-10 text-center" style={{ color: 'rgba(240,244,236,0.30)' }}>
+          <div className="text-4xl mb-2">👥</div>
+          <p>{debouncedSearch ? 'Sin resultados' : 'No hay clientes'}</p>
+        </div>
+      ) : (
+        <div className="card divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+          {clients.map((client, i) => (
+            <motion.div
+              key={client.id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: i * 0.03 }}
+              className={`p-4 ${!client.isActive ? 'opacity-55' : ''}`}
+            >
+              {/* Fila principal */}
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0"
+                  style={{
+                    background: client.isActive ? 'rgba(92,181,22,0.18)' : 'rgba(255,255,255,0.06)',
+                    color: client.isActive ? '#9de360' : 'rgba(240,244,236,0.35)',
+                  }}
+                >
+                  {client.name[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-white truncate">{client.name}</p>
+                  <p className="text-xs truncate" style={{ color: 'rgba(240,244,236,0.45)' }}>
+                    {client.dni} · {client.phone}
+                  </p>
+                </div>
+                {/* Estado */}
+                <button
+                  onClick={() => toggleMutation.mutate(client.id)}
+                  className="badge text-xs flex-shrink-0"
+                  style={client.isActive
+                    ? { background: 'rgba(92,181,22,0.12)', color: '#9de360', border: '1px solid rgba(92,181,22,0.25)' }
+                    : { background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.25)' }
+                  }
+                >
+                  {client.isActive ? 'Activo' : 'Inactivo'}
+                </button>
+              </div>
+
+              {/* Stats + acciones */}
+              <div className="flex items-center justify-between mt-3 pl-13">
+                <div className="flex gap-4 text-sm ml-13">
+                  <span className="font-mono font-bold" style={{ color: '#9de360' }}>
+                    {client.points.toLocaleString()} pts
+                  </span>
+                  <span className="font-mono" style={{ color: '#6ee7b7' }}>
+                    ${client.totalSpent.toLocaleString()}
+                  </span>
+                  <span style={{ color: 'rgba(240,244,236,0.35)' }}>
+                    {client._count?.purchases || 0} compras
+                  </span>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => setEditingClient(client)}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(240,244,236,0.60)' }}
                   >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
-                          client.isActive ? 'bg-violet-500/20 text-violet-300' : 'bg-white/5 text-white/20'
-                        }`}>
-                          {client.name[0]}
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{client.name}</p>
-                          <p className="text-white/30 text-xs">DNI: {client.dni} · {client.phone}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <span className="font-mono font-bold text-violet-400">{client.points.toLocaleString()}</span>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <span className="font-mono text-emerald-400">${client.totalSpent.toLocaleString()}</span>
-                    </td>
-                    <td className="px-4 py-4 text-right text-white/40 text-sm">{client._count?.purchases || 0}</td>
-                    <td className="px-4 py-4 text-center">
-                      <button
-                        onClick={() => toggleMutation.mutate(client.id)}
-                        className={`badge border transition-all ${client.isActive ? 'pill-active hover:bg-red-500/10' : 'pill-inactive hover:bg-emerald-500/10'}`}
-                      >
-                        {client.isActive ? 'Activo' : 'Inactivo'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => setEditingClient(client)}
-                          className="text-white/40 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors text-sm"
-                          title="Editar"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => { if (confirm(`¿Eliminar a ${client.name}? Esta acción no se puede deshacer.`)) deleteMutation.mutate(client.id); }}
-                          className="text-white/40 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-sm"
-                          title="Eliminar"
-                        >
-                          🗑
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                    ✏️
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`¿Eliminar a ${client.name}?`)) deleteMutation.mutate(client.id);
+                    }}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                    style={{ background: 'rgba(239,68,68,0.10)', color: '#fca5a5' }}
+                  >
+                    🗑
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       <AnimatePresence>
         {editingClient && (
