@@ -12,23 +12,22 @@ export function useNotifications() {
     queryKey: ['notifications'],
     queryFn: () => api.get('/api/notifications').then(r => r.data),
     enabled: isAuthenticated(),
+    // Revisar cada 15 segundos automáticamente
+    refetchInterval: 15000,
     refetchOnWindowFocus: true,
-    staleTime: 10000,
+    refetchOnMount: true,
   });
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['notifications'] });
   }, [queryClient]);
 
-  // Escuchar nuevas notificaciones en tiempo real
   useEffect(() => {
     if (!user?.id) return;
     const socket = getSocket(user.id);
-
     const handleNew = () => invalidate();
     socket.on('user:won', handleNew);
     socket.on('user:lost', handleNew);
-
     return () => {
       socket.off('user:won', handleNew);
       socket.off('user:lost', handleNew);
