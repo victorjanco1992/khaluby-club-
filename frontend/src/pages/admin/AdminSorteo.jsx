@@ -94,13 +94,10 @@ export default function AdminSorteo() {
   const drawMutation = useMutation({
     mutationFn: () => api.post(`/api/raffles/${id}/draw`),
     onSuccess: (res) => {
-      // El backend ya resolvió — tenemos el ganador
-      // Pero primero mostramos la animación local
       const w = res.data.winner;
       const entries = raffle?.entries || [];
       const numbers = entries.map(e => e.number);
 
-      // Iniciar animación de spinning
       setPhase('spinning');
       clearInterval(spinIntervalRef.current);
 
@@ -110,7 +107,6 @@ export default function AdminSorteo() {
         }
       }, 80);
 
-      // Después de SPIN_DURATION, mostrar el ganador real
       spinTimeoutRef.current = setTimeout(() => {
         clearInterval(spinIntervalRef.current);
         setDisplayNum(w.number);
@@ -287,7 +283,7 @@ export default function AdminSorteo() {
               transition={{ delay: 0.5 }}
               className="space-y-3"
             >
-              
+              <a
                 href={buildWhatsAppLink(winner)}
                 target="_blank"
                 rel="noopener noreferrer"
