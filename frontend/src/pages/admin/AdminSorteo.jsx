@@ -130,7 +130,6 @@ export default function AdminSorteo() {
     };
   }, []);
 
-  // Notificar que empieza
   const notifyMutation = useMutation({
     mutationFn: (secs) => api.post(`/api/raffles/${id}/notify-starting`, { secondsUntilStart: secs }),
     onSuccess: (_, secs) => {
@@ -141,7 +140,6 @@ export default function AdminSorteo() {
     onError: () => toast.error('Error al notificar'),
   });
 
-  // Realizar sorteo
   const drawMutation = useMutation({
     mutationFn: () => api.post(`/api/raffles/${id}/draw`),
     onSuccess: (res) => {
@@ -217,7 +215,7 @@ export default function AdminSorteo() {
       {/* Stage principal */}
       <div className="card p-6">
 
-        {/* READY — opciones de inicio */}
+        {/* READY */}
         {phase === 'ready' && (
           <div className="space-y-4">
             <div className="text-center mb-4">
@@ -231,7 +229,6 @@ export default function AdminSorteo() {
               </div>
             ) : (
               <>
-                {/* Opción A — Avisar primero */}
                 <div className="rounded-2xl p-4 space-y-3"
                   style={{ background: 'rgba(92,181,22,0.06)', border: '1px solid rgba(92,181,22,0.15)' }}>
                   <div>
@@ -240,8 +237,6 @@ export default function AdminSorteo() {
                       Los clientes reciben una notificación y pueden estar presentes en el sorteo
                     </p>
                   </div>
-
-                  {/* Selector de tiempo */}
                   <div className="grid grid-cols-4 gap-2">
                     {[15, 30, 60, 120].map(secs => (
                       <button
@@ -266,14 +261,12 @@ export default function AdminSorteo() {
                   </div>
                 </div>
 
-                {/* Divider */}
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
                   <span className="text-xs" style={{ color: 'rgba(240,244,236,0.35)' }}>o sortear ahora</span>
                   <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
                 </div>
 
-                {/* Opción B — Sortear directo */}
                 <button
                   onClick={() => { setPhase('spinning'); drawMutation.mutate(); }}
                   disabled={drawMutation.isPending}
@@ -286,7 +279,7 @@ export default function AdminSorteo() {
           </div>
         )}
 
-        {/* COUNTDOWN — esperando */}
+        {/* COUNTDOWN */}
         {phase === 'countdown' && (
           <div className="space-y-5">
             <Countdown
@@ -348,8 +341,12 @@ export default function AdminSorteo() {
         {/* WINNER */}
         {phase === 'winner' && winner && (
           <div className="space-y-5 text-center">
-            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 180 }} className="text-6xl">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 180 }}
+              className="text-6xl"
+            >
               🏆
             </motion.div>
 
@@ -361,7 +358,8 @@ export default function AdminSorteo() {
             </div>
 
             <motion.div
-              initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
               className="winner-glow rounded-2xl p-5 text-left"
               style={{ background: 'rgba(92,181,22,0.10)', border: '1px solid rgba(92,181,22,0.30)' }}
@@ -385,10 +383,12 @@ export default function AdminSorteo() {
             </motion.div>
 
             <motion.div
-              initial={{ y: 15, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }} className="space-y-3"
+              initial={{ y: 15, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="space-y-3"
             >
-              
+              <a
                 href={buildWhatsAppLink(winner)}
                 target="_blank"
                 rel="noopener noreferrer"
