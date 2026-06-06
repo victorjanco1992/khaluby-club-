@@ -322,3 +322,23 @@ export const getUserRaffleNumbers = async (req, res, next) => {
     res.json({ entries });
   } catch (error) { next(error); }
 };
+export const notifyRaffleStarting = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { secondsUntilStart = 30 } = req.body;
+
+    const raffle = await prisma.raffle.findUnique({ where: { id } });
+    if (!raffle) return res.status(404).json({ error: 'Sorteo no encontrado' });
+
+    // Emitir a todos los clientes conectados
+    io.emit('raffle:starting-soon', {
+      raffleId: id,
+      raffleTitle: raffle.title,
+      prize: raffle.prize,
+      prizeImage: raffle.prizeImage,
+      secondsUntilStart,
+    });
+
+    res.json({ message: `Notificación enviada — sorteo en ${secondsUntilStart} segundos` });
+  } catch (error) { next(error); }
+};
