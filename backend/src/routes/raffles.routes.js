@@ -3,7 +3,7 @@ import {
   getRaffles, getRaffle, getLastRaffle, createRaffle,
   activateRaffle, performDraw, resetRaffle, getUserRaffleNumbers,
   updateRaffle, deleteRaffle, getMyWin, notifyRaffleStarting,
-  getRaffleStatus,
+  getLiveStatus,
 } from '../controllers/raffles.controller.js';
 import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 
