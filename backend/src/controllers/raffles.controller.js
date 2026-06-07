@@ -49,7 +49,6 @@ export const getRaffle = async (req, res, next) => {
               select: {
                 id: true,
                 name: true,
-                // DNI solo para admin
                 ...(isAdmin ? { dni: true } : {}),
               },
             },
@@ -108,14 +107,10 @@ export const getLastRaffle = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-// Obtener el último sorteo ganado por el usuario autenticado
 export const getMyWin = async (req, res, next) => {
   try {
     const raffle = await prisma.raffle.findFirst({
-      where: {
-        status: 'FINISHED',
-        winnerId: req.user.id,
-      },
+      where: { status: 'FINISHED', winnerId: req.user.id },
       orderBy: { updatedAt: 'desc' },
     });
 
@@ -200,7 +195,6 @@ export const performDraw = async (req, res, next) => {
     if (raffle.entries.length === 0) return res.status(400).json({ error: 'No hay participantes' });
     if (raffle.status === 'FINISHED') return res.status(400).json({ error: 'Sorteo ya finalizado' });
 
-    // Marcar como sorteando en DB
     await prisma.liveState.upsert({
       where: { id: 'singleton' },
       create: {
@@ -249,7 +243,6 @@ export const performDraw = async (req, res, next) => {
       date: new Date().toISOString(),
     };
 
-    // Guardar ganador en estado en vivo
     await prisma.liveState.update({
       where: { id: 'singleton' },
       data: {
@@ -259,7 +252,6 @@ export const performDraw = async (req, res, next) => {
       },
     });
 
-    // Emitir por socket (best-effort)
     try {
       emitRaffleEvent(io, id, 'raffle:winner', {
         winner: { ...winner, dni: winner.dni.slice(0, -3) + '***' },
@@ -286,7 +278,6 @@ export const performDraw = async (req, res, next) => {
       });
     } catch {}
 
-    // Notificaciones persistentes
     await prisma.notification.create({
       data: {
         userId: winnerEntry.userId,
@@ -350,20 +341,15 @@ export const getUserRaffleNumbers = async (req, res, next) => {
     res.json({ entries });
   } catch (error) { next(error); }
 };
-// Agregar al final de raffles.controller.js
 
-// Obtener estado en vivo — el cliente llama esto cada 2 segundos
 export const getLiveStatus = async (req, res, next) => {
   try {
     const state = await prisma.liveState.findUnique({ where: { id: 'singleton' } });
-    if (!state) {
-      return res.json({ phase: 'idle' });
-    }
+    if (!state) return res.json({ phase: 'idle' });
     res.json(state);
   } catch (error) { next(error); }
 };
 
-// Avisar que el sorteo va a empezar
 export const notifyRaffleStarting = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -372,7 +358,6 @@ export const notifyRaffleStarting = async (req, res, next) => {
     const raffle = await prisma.raffle.findUnique({ where: { id } });
     if (!raffle) return res.status(404).json({ error: 'Sorteo no encontrado' });
 
-    // Guardar estado en DB para que los clientes lo vean por polling
     await prisma.liveState.upsert({
       where: { id: 'singleton' },
       create: {
@@ -396,7 +381,6 @@ export const notifyRaffleStarting = async (req, res, next) => {
       },
     });
 
-    // También emitir por socket (para los que tienen conexión)
     try {
       io.emit('raffle:starting-soon', {
         raffleId: id,
