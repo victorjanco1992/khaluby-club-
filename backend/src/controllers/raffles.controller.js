@@ -200,12 +200,33 @@ export const performDraw = async (req, res, next) => {
     if (raffle.entries.length === 0) return res.status(400).json({ error: 'No hay participantes' });
     if (raffle.status === 'FINISHED') return res.status(400).json({ error: 'Sorteo ya finalizado' });
 
-    // Elegir ganador inmediatamente
+    // Marcar como sorteando en DB
+    await prisma.liveState.upsert({
+      where: { id: 'singleton' },
+      create: {
+        id: 'singleton',
+        phase: 'drawing',
+        raffleId: id,
+        raffleTitle: raffle.title,
+        prize: raffle.prize,
+        prizeImage: raffle.prizeImage,
+      },
+      update: {
+        phase: 'drawing',
+        raffleId: id,
+        raffleTitle: raffle.title,
+        prize: raffle.prize,
+        prizeImage: raffle.prizeImage,
+        winnerNumber: null,
+        winnerName: null,
+        secondsUntilStart: null,
+      },
+    });
+
     const winnerEntry = raffle.entries[Math.floor(Math.random() * raffle.entries.length)];
     const losers = raffle.entries.filter(e => e.userId !== winnerEntry.userId);
     const uniqueLoserIds = [...new Set(losers.map(e => e.userId))];
 
-    // Guardar resultado en DB
     await prisma.raffle.update({
       where: { id },
       data: {
@@ -228,7 +249,17 @@ export const performDraw = async (req, res, next) => {
       date: new Date().toISOString(),
     };
 
-    // Emitir por socket (funciona en local, en Vercel es best-effort con polling)
+    // Guardar ganador en estado en vivo
+    await prisma.liveState.update({
+      where: { id: 'singleton' },
+      data: {
+        phase: 'finished',
+        winnerNumber: winnerEntry.number,
+        winnerName: winnerEntry.user.name,
+      },
+    });
+
+    // Emitir por socket (best-effort)
     try {
       emitRaffleEvent(io, id, 'raffle:winner', {
         winner: { ...winner, dni: winner.dni.slice(0, -3) + '***' },
@@ -253,11 +284,9 @@ export const performDraw = async (req, res, next) => {
           raffleId: id,
         });
       });
-    } catch (socketErr) {
-      console.warn('Socket emit error:', socketErr.message);
-    }
+    } catch {}
 
-    // Guardar notificaciones persistentes
+    // Notificaciones persistentes
     await prisma.notification.create({
       data: {
         userId: winnerEntry.userId,
@@ -295,7 +324,6 @@ export const performDraw = async (req, res, next) => {
       });
     }
 
-    // Responder con el ganador completo — el frontend maneja la animación
     res.json({ message: '¡Sorteo realizado!', winner });
   } catch (error) { next(error); }
 };
@@ -338,6 +366,66 @@ export const notifyRaffleStarting = async (req, res, next) => {
       prizeImage: raffle.prizeImage,
       secondsUntilStart,
     });
+
+    res.json({ message: `Notificación enviada — sorteo en ${secondsUntilStart} segundos` });
+  } catch (error) { next(error); }
+};
+// Agregar al final de raffles.controller.js
+
+// Obtener estado en vivo — el cliente llama esto cada 2 segundos
+export const getLiveStatus = async (req, res, next) => {
+  try {
+    const state = await prisma.liveState.findUnique({ where: { id: 'singleton' } });
+    if (!state) {
+      return res.json({ phase: 'idle' });
+    }
+    res.json(state);
+  } catch (error) { next(error); }
+};
+
+// Avisar que el sorteo va a empezar
+export const notifyRaffleStarting = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { secondsUntilStart = 30 } = req.body;
+
+    const raffle = await prisma.raffle.findUnique({ where: { id } });
+    if (!raffle) return res.status(404).json({ error: 'Sorteo no encontrado' });
+
+    // Guardar estado en DB para que los clientes lo vean por polling
+    await prisma.liveState.upsert({
+      where: { id: 'singleton' },
+      create: {
+        id: 'singleton',
+        phase: 'starting_soon',
+        raffleId: id,
+        raffleTitle: raffle.title,
+        prize: raffle.prize,
+        prizeImage: raffle.prizeImage,
+        secondsUntilStart,
+      },
+      update: {
+        phase: 'starting_soon',
+        raffleId: id,
+        raffleTitle: raffle.title,
+        prize: raffle.prize,
+        prizeImage: raffle.prizeImage,
+        secondsUntilStart,
+        winnerNumber: null,
+        winnerName: null,
+      },
+    });
+
+    // También emitir por socket (para los que tienen conexión)
+    try {
+      io.emit('raffle:starting-soon', {
+        raffleId: id,
+        raffleTitle: raffle.title,
+        prize: raffle.prize,
+        prizeImage: raffle.prizeImage,
+        secondsUntilStart,
+      });
+    } catch {}
 
     res.json({ message: `Notificación enviada — sorteo en ${secondsUntilStart} segundos` });
   } catch (error) { next(error); }
