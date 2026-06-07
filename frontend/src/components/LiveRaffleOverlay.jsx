@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
-import { getSocket } from '../lib/socket.js';
 import { useAuthStore } from '../stores/authStore.js';
+import api from '../lib/api.js';
 
 function launchFireworks() {
   const end = Date.now() + 4000;
@@ -18,12 +18,11 @@ function launchFireworks() {
   frame();
 }
 
-// Banner de aviso — aparece abajo, no invasivo
 function StartingSoonBanner({ data, onDismiss, onWatch }) {
-  const [remaining, setRemaining] = useState(data.secondsUntilStart);
+  const [remaining, setRemaining] = useState(data.secondsUntilStart || 30);
 
   useEffect(() => {
-    if (remaining <= 0) { onDismiss(); return; }
+    if (remaining <= 0) return;
     const t = setTimeout(() => setRemaining(r => r - 1), 1000);
     return () => clearTimeout(t);
   }, [remaining]);
@@ -42,17 +41,15 @@ function StartingSoonBanner({ data, onDismiss, onWatch }) {
         backdropFilter: 'blur(20px)',
       }}
     >
-      {/* Barra de progreso arriba */}
       <motion.div
         className="h-1"
         style={{ background: '#5cb516' }}
         initial={{ width: '100%' }}
         animate={{ width: '0%' }}
-        transition={{ duration: data.secondsUntilStart, ease: 'linear' }}
+        transition={{ duration: data.secondsUntilStart || 30, ease: 'linear' }}
       />
 
       <div className="p-4">
-        {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2">
             <motion.span
@@ -71,14 +68,13 @@ function StartingSoonBanner({ data, onDismiss, onWatch }) {
           </div>
           <button
             onClick={onDismiss}
-            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-sm"
+            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
             style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(240,244,236,0.50)' }}
           >
             ✕
           </button>
         </div>
 
-        {/* Premio con imagen */}
         {data.prizeImage && (
           <img
             src={data.prizeImage}
@@ -90,29 +86,26 @@ function StartingSoonBanner({ data, onDismiss, onWatch }) {
 
         <div className="flex items-center justify-between gap-3 mb-3">
           <div>
-            <p className="text-xs" style={{ color: 'rgba(240,244,236,0.45)' }}>Premio en juego</p>
+            <p className="text-xs" style={{ color: 'rgba(240,244,236,0.45)' }}>Premio</p>
             <p className="font-semibold" style={{ color: '#fde68a' }}>🏆 {data.prize}</p>
           </div>
           <div className="text-right flex-shrink-0">
-            <p className="font-mono font-black text-3xl" style={{ color: '#9de360' }}>
-              {remaining}
-            </p>
-            <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>segundos</p>
+            <p className="font-mono font-black text-3xl" style={{ color: '#9de360' }}>{remaining}</p>
+            <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>seg</p>
           </div>
         </div>
 
-        {/* Botones */}
         <div className="flex gap-2">
           <button
             onClick={onDismiss}
-            className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium"
             style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(240,244,236,0.60)' }}
           >
             Ahora no
           </button>
           <button
             onClick={onWatch}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95"
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold active:scale-95"
             style={{ background: 'linear-gradient(135deg, #5cb516, #459110)', color: '#fff' }}
           >
             👁 Ver en vivo →
@@ -123,8 +116,35 @@ function StartingSoonBanner({ data, onDismiss, onWatch }) {
   );
 }
 
-// Pantalla completa del sorteo en vivo
-function LiveRaffleScreen({ phase, currentNum, winner, onClose }) {
+function SpinningNumbers({ currentNum }) {
+  const str = String(currentNum || 0).padStart(4, '0');
+  return (
+    <div className="flex gap-2 justify-center">
+      {str.split('').map((d, i) => (
+        <div
+          key={i}
+          className="w-16 h-20 rounded-2xl flex items-center justify-center overflow-hidden"
+          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}
+        >
+          <AnimatePresence mode="popLayout">
+            <motion.span
+              key={`${i}-${d}-${Math.random()}`}
+              initial={{ y: -30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 30, opacity: 0 }}
+              transition={{ duration: 0.08 }}
+              className="font-mono font-black text-4xl text-white absolute"
+            >
+              {d}
+            </motion.span>
+          </AnimatePresence>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LiveScreen({ phase, currentNum, winner, onClose }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -133,7 +153,7 @@ function LiveRaffleScreen({ phase, currentNum, winner, onClose }) {
       className="fixed inset-0 z-[90] flex flex-col items-center justify-center p-6"
       style={{ background: 'rgba(8,13,5,0.97)', backdropFilter: 'blur(16px)' }}
     >
-      {phase === 'spinning' && (
+      {phase === 'drawing' && (
         <div className="text-center space-y-6 w-full max-w-sm">
           <motion.div
             animate={{ opacity: [1, 0.4, 1] }}
@@ -147,17 +167,10 @@ function LiveRaffleScreen({ phase, currentNum, winner, onClose }) {
 
           <div>
             <h2 className="font-display font-bold text-4xl text-white mb-2">¡Sorteando!</h2>
-            <p style={{ color: 'rgba(240,244,236,0.50)' }}>
-              El número ganador está siendo elegido...
-            </p>
+            <p style={{ color: 'rgba(240,244,236,0.50)' }}>El número ganador está siendo elegido...</p>
           </div>
 
-          <div
-            className="font-mono font-black text-9xl"
-            style={{ color: '#9de360', textShadow: '0 0 40px rgba(92,181,22,0.5)' }}
-          >
-            {currentNum ?? '??'}
-          </div>
+          <SpinningNumbers currentNum={currentNum} />
 
           <div className="flex justify-center items-end gap-2 h-14">
             {[...Array(9)].map((_, i) => (
@@ -173,15 +186,15 @@ function LiveRaffleScreen({ phase, currentNum, winner, onClose }) {
 
           <button
             onClick={onClose}
-            className="text-xs py-2 px-4 rounded-full transition-all"
-            style={{ color: 'rgba(240,244,236,0.35)', background: 'rgba(255,255,255,0.05)' }}
+            className="text-xs py-2 px-5 rounded-full"
+            style={{ color: 'rgba(240,244,236,0.35)', background: 'rgba(255,255,255,0.06)' }}
           >
             Minimizar
           </button>
         </div>
       )}
 
-      {phase === 'winner' && winner && (
+      {phase === 'finished' && winner && (
         <motion.div
           initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -198,9 +211,7 @@ function LiveRaffleScreen({ phase, currentNum, winner, onClose }) {
           </motion.div>
 
           <div>
-            <h2 className="font-display font-black text-4xl mb-1" style={{ color: '#9de360' }}>
-              ¡Ganador!
-            </h2>
+            <h2 className="font-display font-black text-4xl mb-1" style={{ color: '#9de360' }}>¡Ganador!</h2>
             <p style={{ color: 'rgba(240,244,236,0.55)' }}>{winner.prize}</p>
           </div>
 
@@ -212,12 +223,9 @@ function LiveRaffleScreen({ phase, currentNum, winner, onClose }) {
               className="rounded-2xl overflow-hidden"
               style={{ border: '1px solid rgba(92,181,22,0.30)' }}
             >
-              <img
-                src={winner.prizeImage}
-                alt="Premio"
+              <img src={winner.prizeImage} alt="Premio"
                 className="w-full h-44 object-cover"
-                onError={e => { e.target.style.display = 'none'; }}
-              />
+                onError={e => { e.target.style.display = 'none'; }} />
             </motion.div>
           )}
 
@@ -228,7 +236,7 @@ function LiveRaffleScreen({ phase, currentNum, winner, onClose }) {
             className="font-mono font-black text-8xl"
             style={{ color: '#fde68a', textShadow: '0 0 40px rgba(251,191,36,0.4)' }}
           >
-            #{winner.number}
+            #{winner.winnerNumber}
           </motion.div>
 
           <motion.div
@@ -239,7 +247,7 @@ function LiveRaffleScreen({ phase, currentNum, winner, onClose }) {
             style={{ background: 'rgba(92,181,22,0.12)', border: '1px solid rgba(92,181,22,0.35)' }}
           >
             <p className="text-xs mb-1" style={{ color: 'rgba(240,244,236,0.50)' }}>Ganador</p>
-            <p className="font-display font-black text-2xl text-white">{winner.name}</p>
+            <p className="font-display font-black text-2xl text-white">{winner.winnerName}</p>
           </motion.div>
 
           <motion.button
@@ -261,80 +269,96 @@ export default function LiveRaffleOverlay() {
   const { isAuthenticated, isAdmin } = useAuthStore();
   const navigate = useNavigate();
 
-  const [startingSoon, setStartingSoon] = useState(null); // datos del aviso
-  const [livePhase, setLivePhase] = useState(null);       // null | spinning | winner
-  const [showLive, setShowLive] = useState(false);        // si mostrar pantalla completa
-  const [currentNum, setCurrentNum] = useState(null);
-  const [winner, setWinner] = useState(null);
-  const spinIntervalRef = useRef(null);
+  const [liveState, setLiveState] = useState({ phase: 'idle' });
+  const [prevPhase, setPrevPhase] = useState('idle');
+  const [showBanner, setShowBanner] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [showLive, setShowLive] = useState(false);
 
+  // Números girando localmente
+  const [currentNum, setCurrentNum] = useState(0);
+  const spinRef = useRef(null);
+  const firedFireworksRef = useRef(false);
+
+  const poll = useCallback(async () => {
+    if (!isAuthenticated() || isAdmin()) return;
+    try {
+      const res = await api.get('/api/raffles/live-status');
+      setLiveState(res.data);
+    } catch {}
+  }, [isAuthenticated, isAdmin]);
+
+  // Polling cada 2 segundos
   useEffect(() => {
     if (!isAuthenticated() || isAdmin()) return;
-    const socket = getSocket();
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [poll]);
 
-    // Aviso previo
-    socket.on('raffle:starting-soon', (data) => {
-      setStartingSoon(data);
+  // Reaccionar a cambios de fase
+  useEffect(() => {
+    const phase = liveState.phase;
+
+    if (phase === prevPhase) return;
+    setPrevPhase(phase);
+
+    if (phase === 'starting_soon') {
+      setBannerDismissed(false);
+      setShowBanner(true);
       setShowLive(false);
-    });
+      firedFireworksRef.current = false;
+    }
 
-    // Empieza el sorteo
-    socket.on('raffle:spinning', (data) => {
-      setStartingSoon(null);
-      setLivePhase('spinning');
+    if (phase === 'drawing') {
+      setShowBanner(false);
       setShowLive(true);
-      setWinner(null);
 
-      const nums = data.numbers || [1];
-      clearInterval(spinIntervalRef.current);
-      spinIntervalRef.current = setInterval(() => {
-        setCurrentNum(nums[Math.floor(Math.random() * nums.length)]);
+      // Empezar animación de números localmente
+      clearInterval(spinRef.current);
+      spinRef.current = setInterval(() => {
+        setCurrentNum(Math.floor(Math.random() * 9999));
       }, 80);
-      setTimeout(() => clearInterval(spinIntervalRef.current), data.spinDurationMs || 6000);
-    });
 
-    // Ganador
-    socket.on('raffle:winner', ({ winner: w }) => {
-      clearInterval(spinIntervalRef.current);
-      setCurrentNum(w.number);
-      setWinner(w);
-      setLivePhase('winner');
+      // Parar spinning después de 5s
+      setTimeout(() => clearInterval(spinRef.current), 5500);
+    }
+
+    if (phase === 'finished') {
+      clearInterval(spinRef.current);
       setShowLive(true);
-      launchFireworks();
-    });
 
-    socket.on('raffle:finished', () => {
-      setTimeout(() => {
-        if (livePhase === 'spinning') setLivePhase(null);
-      }, 8000);
-    });
+      if (!firedFireworksRef.current) {
+        firedFireworksRef.current = true;
+        launchFireworks();
+      }
+    }
 
-    return () => {
-      socket.off('raffle:starting-soon');
-      socket.off('raffle:spinning');
-      socket.off('raffle:winner');
-      socket.off('raffle:finished');
-      clearInterval(spinIntervalRef.current);
-    };
-  }, [isAuthenticated(), isAdmin()]);
+    if (phase === 'idle') {
+      setShowBanner(false);
+      // No cerrar pantalla de ganador automáticamente
+    }
+  }, [liveState.phase]);
 
   if (!isAuthenticated() || isAdmin()) return null;
 
   return (
     <>
-      {/* Banner de aviso previo */}
+      {/* Banner aviso previo */}
       <AnimatePresence>
-        {startingSoon && !showLive && (
+        {showBanner && !bannerDismissed && liveState.phase === 'starting_soon' && (
           <StartingSoonBanner
-            data={startingSoon}
-            onDismiss={() => setStartingSoon(null)}
+            data={liveState}
+            onDismiss={() => {
+              setBannerDismissed(true);
+              setShowBanner(false);
+            }}
             onWatch={() => {
-              setStartingSoon(null);
-              // Si ya está en vivo, mostrar pantalla
-              if (livePhase) {
+              setShowBanner(false);
+              setBannerDismissed(true);
+              if (liveState.phase === 'drawing' || liveState.phase === 'finished') {
                 setShowLive(true);
               } else {
-                // Ir a la página de sorteo público a esperar
                 navigate('/sorteos');
               }
             }}
@@ -342,18 +366,18 @@ export default function LiveRaffleOverlay() {
         )}
       </AnimatePresence>
 
-      {/* Pantalla completa en vivo */}
+      {/* Pantalla en vivo */}
       <AnimatePresence>
-        {showLive && livePhase && (
-          <LiveRaffleScreen
-            phase={livePhase}
+        {showLive && (liveState.phase === 'drawing' || liveState.phase === 'finished') && (
+          <LiveScreen
+            phase={liveState.phase}
             currentNum={currentNum}
-            winner={winner}
+            winner={liveState}
             onClose={() => {
               setShowLive(false);
-              if (livePhase === 'winner') {
-                setLivePhase(null);
-                setWinner(null);
+              if (liveState.phase === 'finished') {
+                // Limpiar estado finished después de cerrar
+                setPrevPhase('idle');
               }
             }}
           />
