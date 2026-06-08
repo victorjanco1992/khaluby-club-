@@ -391,3 +391,25 @@ export const notifyRaffleStarting = async (req, res, next) => {
     res.json({ message: `Notificación enviada — sorteo en ${secondsUntilStart} segundos` });
   } catch (error) { next(error); }
 };
+// Avisar a clientes que los números están girando
+export const notifyRaffleSpinning = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { numbers = [], spinDurationMs = 5000 } = req.body;
+
+    const raffle = await prisma.raffle.findUnique({ where: { id } });
+    if (!raffle) return res.status(404).json({ error: 'Sorteo no encontrado' });
+
+    // Emitir a TODOS los clientes
+    io.emit('raffle:spinning', {
+      raffleId: id,
+      raffleTitle: raffle.title,
+      prize: raffle.prize,
+      prizeImage: raffle.prizeImage,
+      numbers,
+      spinDurationMs,
+    });
+
+    res.json({ message: 'Spinning notificado' });
+  } catch (error) { next(error); }
+};
