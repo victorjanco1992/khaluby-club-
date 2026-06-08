@@ -20,9 +20,48 @@ function launchFireworks() {
   frame();
 }
 
+// Dígito individual animado — igual que en AdminSorteo
+function DigitDrum({ digit, isSpinning }) {
+  return (
+    <div
+      className="rounded-2xl flex items-center justify-center overflow-hidden relative"
+      style={{
+        width: 'clamp(52px, 14vw, 72px)',
+        height: 'clamp(68px, 18vw, 96px)',
+        background: 'rgba(255,255,255,0.07)',
+        border: '1px solid rgba(255,255,255,0.13)',
+      }}
+    >
+      <AnimatePresence mode="popLayout">
+        <motion.span
+          key={isSpinning ? `${digit}-${Math.random()}` : digit}
+          initial={{ y: -40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 40, opacity: 0 }}
+          transition={{ duration: 0.08 }}
+          className="font-mono font-black text-white absolute select-none"
+          style={{ fontSize: 'clamp(1.8rem, 7vw, 3rem)' }}
+        >
+          {digit}
+        </motion.span>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function NumberDisplay({ value, isSpinning }) {
+  const str = String(value || 0).padStart(4, '0');
+  return (
+    <div className="flex gap-2 justify-center">
+      {str.split('').map((d, i) => (
+        <DigitDrum key={i} digit={d} isSpinning={isSpinning} />
+      ))}
+    </div>
+  );
+}
+
 function StartingSoonBanner({ data, onDismiss, onWatch }) {
   const [remaining, setRemaining] = useState(data.secondsUntilStart);
-
   useEffect(() => {
     if (remaining <= 0) { onDismiss(); return; }
     const t = setTimeout(() => setRemaining(r => r - 1), 1000);
@@ -44,7 +83,8 @@ function StartingSoonBanner({ data, onDismiss, onWatch }) {
       }}
     >
       <motion.div
-        className="h-1.5" style={{ background: 'linear-gradient(90deg, #5cb516, #9de360)' }}
+        className="h-1.5"
+        style={{ background: 'linear-gradient(90deg, #5cb516, #9de360)' }}
         initial={{ width: '100%' }}
         animate={{ width: '0%' }}
         transition={{ duration: data.secondsUntilStart, ease: 'linear' }}
@@ -55,7 +95,7 @@ function StartingSoonBanner({ data, onDismiss, onWatch }) {
             <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }}
               className="text-2xl">🎰</motion.span>
             <div>
-              <p className="font-bold text-white text-sm">¡El sorteo está por empezar!</p>
+              <p className="font-bold text-white text-sm">¡Sorteo por empezar!</p>
               <p className="text-xs" style={{ color: 'rgba(240,244,236,0.55)' }}>{data.raffleTitle}</p>
             </div>
           </div>
@@ -101,121 +141,125 @@ function LiveScreen({ phase, currentNum, winner, raffleInfo, onClose }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[90] flex flex-col items-center justify-center p-6"
-      style={{ background: 'rgba(8,13,5,0.97)', backdropFilter: 'blur(16px)' }}
+      className="fixed inset-0 z-[90] flex flex-col"
+      style={{ background: 'rgba(8,13,5,0.98)', backdropFilter: 'blur(16px)' }}
     >
-      {phase === 'spinning' && (
-        <div className="text-center space-y-5 w-full max-w-sm">
+      {/* Header siempre visible */}
+      <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center gap-2">
           <motion.div
-            animate={{ opacity: [1, 0.4, 1] }}
+            animate={{ opacity: [1, 0.3, 1] }}
             transition={{ repeat: Infinity, duration: 0.8 }}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold"
-            style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.30)' }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full bg-red-400 live-dot" />
-            🎰 SORTEO EN VIVO
-          </motion.div>
-
-          {/* Info del sorteo */}
-          {raffleInfo && (
-            <div>
-              <p className="font-display font-bold text-2xl text-white">{raffleInfo.raffleTitle}</p>
-              <p className="text-sm mt-0.5" style={{ color: '#fde68a' }}>🏆 {raffleInfo.prize}</p>
-            </div>
-          )}
-
-          {/* Imagen del premio */}
-          {raffleInfo?.prizeImage && (
-            <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(92,181,22,0.20)' }}>
-              <img src={raffleInfo.prizeImage} alt="Premio"
-                className="w-full h-36 object-cover"
-                onError={e => { e.target.style.display = 'none'; }} />
-            </div>
-          )}
-
-          {/* Número girando */}
-          <div className="font-mono font-black"
-            style={{
-              fontSize: 'clamp(4rem, 20vw, 7rem)',
-              color: '#9de360',
-              textShadow: '0 0 40px rgba(92,181,22,0.6)',
-              letterSpacing: '0.1em',
-            }}>
-            {String(currentNum ?? 0).padStart(4, '0')}
-          </div>
-
-          {/* Barras */}
-          <div className="flex justify-center items-end gap-2 h-12">
-            {[...Array(9)].map((_, i) => (
-              <motion.div key={i} className="w-2 rounded-full" style={{ background: '#5cb516' }}
-                animate={{ height: ['16px', `${20 + Math.random() * 32}px`, '16px'] }}
-                transition={{ repeat: Infinity, duration: 0.5 + Math.random() * 0.3, delay: i * 0.07 }} />
-            ))}
-          </div>
-
-          <p style={{ color: 'rgba(240,244,236,0.50)' }}>El número ganador está siendo elegido...</p>
-
-          <button onClick={onClose}
-            className="text-xs py-2 px-5 rounded-full"
-            style={{ color: 'rgba(240,244,236,0.35)', background: 'rgba(255,255,255,0.05)' }}>
-            Minimizar
-          </button>
+            className="w-3 h-3 rounded-full bg-red-400"
+          />
+          <span className="text-sm font-bold" style={{ color: '#fca5a5' }}>EN VIVO</span>
         </div>
-      )}
+        <p className="font-display font-bold text-white text-sm truncate mx-3">
+          {raffleInfo?.raffleTitle || 'Sorteo'}
+        </p>
+        {phase !== 'spinning' && (
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(240,244,236,0.60)' }}>
+            ✕
+          </button>
+        )}
+        {phase === 'spinning' && <div className="w-8" />}
+      </div>
 
-      {phase === 'winner' && winner && (
-        <motion.div
-          initial={{ scale: 0.85, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 160 }}
-          className="text-center space-y-4 w-full max-w-sm"
-        >
-          <motion.div
-            initial={{ scale: 0, rotate: -15 }} animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
-            className="text-7xl">🏆</motion.div>
+      {/* Contenido */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
 
-          <div>
-            <h2 className="font-display font-black text-4xl mb-1" style={{ color: '#9de360' }}>¡Ganador!</h2>
-            <p style={{ color: 'rgba(240,244,236,0.55)' }}>{winner.prize}</p>
+        {/* SPINNING — igual que el admin */}
+        {phase === 'spinning' && (
+          <div className="text-center space-y-6 w-full max-w-sm">
+            {/* Imagen del premio */}
+            {raffleInfo?.prizeImage && (
+              <div className="rounded-2xl overflow-hidden"
+                style={{ border: '1px solid rgba(92,181,22,0.20)' }}>
+                <img src={raffleInfo.prizeImage} alt="Premio"
+                  className="w-full h-36 object-cover"
+                  onError={e => { e.target.style.display = 'none'; }} />
+              </div>
+            )}
+
+            <div>
+              <p className="text-sm mb-1" style={{ color: 'rgba(240,244,236,0.55)' }}>Premio</p>
+              <p className="font-semibold" style={{ color: '#fde68a' }}>🏆 {raffleInfo?.prize}</p>
+            </div>
+
+            {/* Los dígitos animados — IGUAL QUE EL ADMIN */}
+            <NumberDisplay value={currentNum} isSpinning={true} />
+
+            {/* Barras animadas */}
+            <div className="flex justify-center items-end gap-2 h-12">
+              {[...Array(9)].map((_, i) => (
+                <motion.div key={i} className="w-2 rounded-full" style={{ background: '#5cb516' }}
+                  animate={{ height: ['16px', `${20 + Math.random() * 32}px`, '16px'] }}
+                  transition={{ repeat: Infinity, duration: 0.5 + Math.random() * 0.3, delay: i * 0.07 }} />
+              ))}
+            </div>
+
+            <p className="text-base" style={{ color: 'rgba(240,244,236,0.55)' }}>
+              El número ganador está siendo elegido...
+            </p>
           </div>
+        )}
 
-          {winner.prizeImage && (
+        {/* WINNER */}
+        {phase === 'winner' && winner && (
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 160 }}
+            className="text-center space-y-4 w-full max-w-sm"
+          >
             <motion.div
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="rounded-2xl overflow-hidden"
-              style={{ border: '1px solid rgba(92,181,22,0.30)' }}>
-              <img src={winner.prizeImage} alt="Premio"
-                className="w-full h-44 object-cover"
-                onError={e => { e.target.style.display = 'none'; }} />
+              initial={{ scale: 0, rotate: -15 }} animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
+              className="text-6xl">🏆</motion.div>
+
+            <div>
+              <h2 className="font-display font-black text-4xl mb-1" style={{ color: '#9de360' }}>¡Ganador!</h2>
+              <p style={{ color: 'rgba(240,244,236,0.55)' }}>{winner.prize}</p>
+            </div>
+
+            {winner.prizeImage && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-2xl overflow-hidden"
+                style={{ border: '1px solid rgba(92,181,22,0.30)' }}>
+                <img src={winner.prizeImage} alt="Premio"
+                  className="w-full h-40 object-cover"
+                  onError={e => { e.target.style.display = 'none'; }} />
+              </motion.div>
+            )}
+
+            {/* Número ganador con dígitos */}
+            <motion.div
+              initial={{ scale: 0 }} animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 180, delay: 0.25 }}>
+              <NumberDisplay value={winner.number} isSpinning={false} />
             </motion.div>
-          )}
 
-          <motion.div
-            initial={{ scale: 0 }} animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 180, delay: 0.25 }}
-            className="font-mono font-black text-8xl"
-            style={{ color: '#fde68a', textShadow: '0 0 40px rgba(251,191,36,0.4)' }}>
-            #{winner.number}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="winner-glow rounded-2xl p-5"
+              style={{ background: 'rgba(92,181,22,0.12)', border: '1px solid rgba(92,181,22,0.35)' }}>
+              <p className="text-xs mb-1" style={{ color: 'rgba(240,244,236,0.50)' }}>Ganador</p>
+              <p className="font-display font-black text-2xl text-white">{winner.name}</p>
+            </motion.div>
+
+            <motion.button
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
+              onClick={onClose} className="btn-secondary w-full py-4 text-base">
+              Cerrar
+            </motion.button>
           </motion.div>
-
-          <motion.div
-            initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="winner-glow rounded-2xl p-5"
-            style={{ background: 'rgba(92,181,22,0.12)', border: '1px solid rgba(92,181,22,0.35)' }}>
-            <p className="text-xs mb-1" style={{ color: 'rgba(240,244,236,0.50)' }}>Ganador</p>
-            <p className="font-display font-black text-2xl text-white">{winner.name}</p>
-          </motion.div>
-
-          <motion.button
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
-            onClick={onClose} className="btn-secondary w-full py-4 text-base">
-            Cerrar
-          </motion.button>
-        </motion.div>
-      )}
+        )}
+      </div>
     </motion.div>
   );
 }
@@ -231,24 +275,19 @@ export default function LiveRaffleOverlay() {
   const [currentNum, setCurrentNum] = useState(0);
   const [winner, setWinner] = useState(null);
   const [raffleInfo, setRaffleInfo] = useState(null);
-  const [dismissed, setDismissed] = useState(false);
 
   const spinIntervalRef = useRef(null);
   const lastRaffleIdRef = useRef(null);
-  const lastStatusRef = useRef(null);
   const winnerShownRef = useRef(false);
 
-  // ===== POLLING cada 2 segundos =====
+  // Polling cada 2s como respaldo
   const { data: pollData } = useQuery({
     queryKey: ['live-poll'],
     queryFn: async () => {
-      // Buscar sorteo activo O el último finalizado
-      const [activeRes, lastRes] = await Promise.allSettled([
-        api.get('/api/raffles?limit=1').then(r => r.data.raffles[0]),
+      const [lastRes] = await Promise.allSettled([
         api.get('/api/raffles/last').then(r => r.data),
       ]);
       return {
-        active: activeRes.status === 'fulfilled' ? activeRes.value : null,
         last: lastRes.status === 'fulfilled' ? lastRes.value : null,
       };
     },
@@ -257,74 +296,48 @@ export default function LiveRaffleOverlay() {
     refetchIntervalInBackground: true,
   });
 
+  // Detectar ganador por polling
   useEffect(() => {
-    if (!pollData) return;
-    const { active, last } = pollData;
+    if (!pollData?.last) return;
+    const { raffle, winnerEntry } = pollData.last;
+    if (!raffle?.winnerNumber || winnerShownRef.current) return;
 
-    // Hay un sorteo activo
-    if (active) {
-      const isNew = lastRaffleIdRef.current !== active.id;
-      if (isNew) {
-        lastRaffleIdRef.current = active.id;
-        winnerShownRef.current = false;
-      }
-    }
+    const finishedAt = new Date(raffle.updatedAt).getTime();
+    const secsSince = (Date.now() - finishedAt) / 1000;
 
-    // Detectar sorteo recién finalizado que no hemos mostrado
-    if (last?.raffle && !winnerShownRef.current) {
-      const raffle = last.raffle;
-      const winnerEntry = last.winnerEntry;
-
-      // Si el sorteo terminó hace menos de 30 segundos → mostrar ganador
-      const finishedAt = new Date(raffle.updatedAt).getTime();
-      const now = Date.now();
-      const secsSinceFinished = (now - finishedAt) / 1000;
-
-      if (
-        secsSinceFinished < 30 &&
-        raffle.winnerNumber &&
-        lastRaffleIdRef.current === raffle.id &&
-        livePhase === 'spinning'
-      ) {
-        winnerShownRef.current = true;
-        clearInterval(spinIntervalRef.current);
-
-        const w = {
-          number: raffle.winnerNumber,
-          name: winnerEntry?.user?.name || 'Ganador',
-          prize: raffle.prize,
-          prizeImage: raffle.prizeImage,
-          raffleTitle: raffle.title,
-        };
-
-        setWinner(w);
-        setLivePhase('winner');
-        setShowLive(true);
-        launchFireworks();
-
-        // Refrescar notificaciones
-        queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      }
+    if (
+      secsSince < 30 &&
+      livePhase === 'spinning' &&
+      lastRaffleIdRef.current === raffle.id
+    ) {
+      winnerShownRef.current = true;
+      clearInterval(spinIntervalRef.current);
+      setWinner({
+        number: raffle.winnerNumber,
+        name: winnerEntry?.user?.name || 'Ganador',
+        prize: raffle.prize,
+        prizeImage: raffle.prizeImage,
+        raffleTitle: raffle.title,
+      });
+      setLivePhase('winner');
+      setShowLive(true);
+      launchFireworks();
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     }
   }, [pollData, livePhase]);
 
-  // ===== SOCKET =====
+  // Socket
   useEffect(() => {
     if (!isAuthenticated() || isAdmin()) return;
-
     const socket = getSocket(user?.id);
 
     socket.on('raffle:starting-soon', (data) => {
       setStartingSoon(data);
-      setDismissed(false);
     });
 
     socket.on('raffle:spinning', (data) => {
       setStartingSoon(null);
-      setDismissed(false);
-      setWinner(null);
       winnerShownRef.current = false;
-
       if (data.raffleId) lastRaffleIdRef.current = data.raffleId;
 
       setRaffleInfo({
@@ -332,37 +345,33 @@ export default function LiveRaffleOverlay() {
         prize: data.prize,
         prizeImage: data.prizeImage,
       });
-
       setLivePhase('spinning');
       setShowLive(true);
+      setWinner(null);
 
       const nums = data.numbers?.length > 0 ? data.numbers : [1, 2, 3, 4, 5];
       clearInterval(spinIntervalRef.current);
       spinIntervalRef.current = setInterval(() => {
         setCurrentNum(nums[Math.floor(Math.random() * nums.length)]);
       }, 80);
-
-      // Auto-parar la animación local si el socket no trae el winner
       setTimeout(() => clearInterval(spinIntervalRef.current), data.spinDurationMs || 6000);
     });
 
     socket.on('raffle:winner', ({ winner: w, raffleId }) => {
       clearInterval(spinIntervalRef.current);
       winnerShownRef.current = true;
-
       setCurrentNum(w.number);
       setWinner(w);
       setLivePhase('winner');
       setShowLive(true);
       launchFireworks();
-
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['raffles-client'] });
     });
 
     socket.on('raffle:finished', () => {
-      queryClient.invalidateQueries({ queryKey: ['raffles-client'] });
       queryClient.invalidateQueries({ queryKey: ['live-poll'] });
+      queryClient.invalidateQueries({ queryKey: ['raffles-client'] });
     });
 
     return () => {
@@ -378,12 +387,11 @@ export default function LiveRaffleOverlay() {
 
   return (
     <>
-      {/* Banner aviso previo */}
       <AnimatePresence>
         {startingSoon && !showLive && (
           <StartingSoonBanner
             data={startingSoon}
-            onDismiss={() => { setStartingSoon(null); setDismissed(true); }}
+            onDismiss={() => setStartingSoon(null)}
             onWatch={() => {
               setStartingSoon(null);
               if (livePhase) setShowLive(true);
@@ -393,7 +401,6 @@ export default function LiveRaffleOverlay() {
         )}
       </AnimatePresence>
 
-      {/* Pantalla en vivo */}
       <AnimatePresence>
         {showLive && livePhase && (
           <LiveScreen
@@ -406,7 +413,7 @@ export default function LiveRaffleOverlay() {
               if (livePhase === 'winner') {
                 setLivePhase(null);
                 setWinner(null);
-                setDismissed(false);
+                winnerShownRef.current = false;
               }
             }}
           />
