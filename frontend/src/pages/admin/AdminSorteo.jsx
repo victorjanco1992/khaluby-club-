@@ -56,26 +56,21 @@ function NumberDisplay({ value, isSpinning }) {
 
 function Countdown({ seconds, onDone }) {
   const [remaining, setRemaining] = useState(seconds);
-
   useEffect(() => {
     if (remaining <= 0) { onDone(); return; }
     const t = setTimeout(() => setRemaining(r => r - 1), 1000);
     return () => clearTimeout(t);
   }, [remaining]);
-
   const pct = (remaining / seconds) * 100;
-
   return (
     <div className="text-center space-y-3">
       <p className="text-sm font-medium" style={{ color: 'rgba(240,244,236,0.60)' }}>
-        Aviso enviado a los clientes
+        Aviso enviado — los clientes están esperando
       </p>
       <div className="relative w-24 h-24 mx-auto">
         <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
-          <circle cx="48" cy="48" r="40" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
-          <circle
-            cx="48" cy="48" r="40" fill="none"
-            stroke="#5cb516" strokeWidth="8"
+          <circle cx="48" cy="48" r="40" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8"/>
+          <circle cx="48" cy="48" r="40" fill="none" stroke="#5cb516" strokeWidth="8"
             strokeDasharray={`${2 * Math.PI * 40}`}
             strokeDashoffset={`${2 * Math.PI * 40 * (1 - pct / 100)}`}
             strokeLinecap="round"
@@ -86,9 +81,7 @@ function Countdown({ seconds, onDone }) {
           <span className="font-mono font-black text-3xl text-white">{remaining}</span>
         </div>
       </div>
-      <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>
-        segundos para el sorteo
-      </p>
+      <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>segundos para el sorteo</p>
     </div>
   );
 }
@@ -111,7 +104,7 @@ function buildWhatsAppLink(winner) {
 
 export default function AdminSorteo() {
   const { id } = useParams();
-  const [phase, setPhase] = useState('ready'); // ready | notifying | countdown | spinning | winner
+  const [phase, setPhase] = useState('ready');
   const [displayNum, setDisplayNum] = useState(0);
   const [winner, setWinner] = useState(null);
   const [countdownSecs, setCountdownSecs] = useState(30);
@@ -130,31 +123,34 @@ export default function AdminSorteo() {
     };
   }, []);
 
+  // Notificar que empieza
   const notifyMutation = useMutation({
-    mutationFn: (secs) => api.post(`/api/raffles/${id}/notify-starting`, { secondsUntilStart: secs }),
+    mutationFn: (secs) => api.post(`/api/raffles/${id}/notify-starting`, {
+      secondsUntilStart: secs,
+    }),
     onSuccess: (_, secs) => {
       setCountdownSecs(secs);
       setPhase('countdown');
-      toast.success(`✅ Notificación enviada — sorteo en ${secs}s`);
+      toast.success(`✅ Aviso enviado — sorteo en ${secs}s`);
     },
-    onError: () => toast.error('Error al notificar'),
+    onError: () => toast.error('Error al enviar aviso'),
   });
 
+  // Paso 1: avisar a clientes que empieza el spinning
+  const notifySpinningMutation = useMutation({
+    mutationFn: () => api.post(`/api/raffles/${id}/notify-spinning`, {
+      numbers: raffle?.entries?.map(e => e.number) || [],
+      spinDurationMs: SPIN_DURATION,
+    }),
+  });
+
+  // Paso 2: realizar el sorteo
   const drawMutation = useMutation({
     mutationFn: () => api.post(`/api/raffles/${id}/draw`),
     onSuccess: (res) => {
       const w = res.data.winner;
       const entries = raffle?.entries || [];
       const numbers = entries.map(e => e.number);
-
-      setPhase('spinning');
-      clearInterval(spinIntervalRef.current);
-
-      spinIntervalRef.current = setInterval(() => {
-        if (numbers.length > 0) {
-          setDisplayNum(numbers[Math.floor(Math.random() * numbers.length)]);
-        }
-      }, 80);
 
       spinTimeoutRef.current = setTimeout(() => {
         clearInterval(spinIntervalRef.current);
@@ -167,8 +163,33 @@ export default function AdminSorteo() {
     onError: (err) => {
       toast.error(err.response?.data?.error || 'Error al sortear');
       setPhase('ready');
+      clearInterval(spinIntervalRef.current);
     },
   });
+
+  // Iniciar sorteo completo
+  const handleDraw = () => {
+    if (!raffle || (raffle.entries?.length || 0) === 0) {
+      return toast.error('No hay participantes');
+    }
+
+    const entries = raffle.entries || [];
+    const numbers = entries.map(e => e.number);
+
+    // 1. Mostrar spinning en admin
+    setPhase('spinning');
+    setWinner(null);
+    clearInterval(spinIntervalRef.current);
+    spinIntervalRef.current = setInterval(() => {
+      setDisplayNum(numbers[Math.floor(Math.random() * numbers.length)]);
+    }, 80);
+
+    // 2. Avisar a clientes que empieza (socket)
+    notifySpinningMutation.mutate();
+
+    // 3. Llamar al backend para sortear
+    drawMutation.mutate();
+  };
 
   if (isLoading) {
     return (
@@ -180,17 +201,18 @@ export default function AdminSorteo() {
   }
 
   if (!raffle) return (
-    <div className="text-center py-20" style={{ color: 'rgba(240,244,236,0.40)' }}>Sorteo no encontrado</div>
+    <div className="text-center py-20" style={{ color: 'rgba(240,244,236,0.40)' }}>
+      Sorteo no encontrado
+    </div>
   );
 
   const entries = raffle.entries || [];
 
   return (
     <div className="max-w-lg mx-auto space-y-5">
-      {/* Header */}
       <div>
         <Link to="/admin/sorteos"
-          className="text-sm mb-3 inline-flex items-center gap-1 transition-colors"
+          className="text-sm mb-3 inline-flex items-center gap-1"
           style={{ color: 'rgba(240,244,236,0.45)' }}>
           ← Volver
         </Link>
@@ -201,20 +223,14 @@ export default function AdminSorteo() {
         </p>
       </div>
 
-      {/* Imagen */}
       {raffle.prizeImage && (
-        <img
-          src={raffle.prizeImage}
-          alt={raffle.prize}
+        <img src={raffle.prizeImage} alt={raffle.prize}
           className="w-full h-44 object-cover rounded-2xl"
           style={{ border: '1px solid rgba(255,255,255,0.08)' }}
-          onError={e => { e.target.style.display = 'none'; }}
-        />
+          onError={e => { e.target.style.display = 'none'; }} />
       )}
 
-      {/* Stage principal */}
       <div className="card p-6">
-
         {/* READY */}
         {phase === 'ready' && (
           <div className="space-y-4">
@@ -225,16 +241,17 @@ export default function AdminSorteo() {
             {entries.length === 0 ? (
               <div className="px-4 py-3 rounded-xl text-sm text-center"
                 style={{ background: 'rgba(245,158,11,0.10)', color: '#fde68a', border: '1px solid rgba(245,158,11,0.20)' }}>
-                ⚠️ No hay participantes en este sorteo
+                ⚠️ No hay participantes
               </div>
             ) : (
               <>
+                {/* Avisar antes */}
                 <div className="rounded-2xl p-4 space-y-3"
                   style={{ background: 'rgba(92,181,22,0.06)', border: '1px solid rgba(92,181,22,0.15)' }}>
                   <div>
                     <p className="font-semibold text-white text-sm">📢 Avisá antes de sortear</p>
                     <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.50)' }}>
-                      Los clientes reciben una notificación y pueden estar presentes en el sorteo
+                      Los clientes reciben una notificación y pueden ver el sorteo en vivo
                     </p>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
@@ -244,18 +261,12 @@ export default function AdminSorteo() {
                         onClick={() => notifyMutation.mutate(secs)}
                         disabled={notifyMutation.isPending}
                         className="py-3 rounded-xl text-center transition-all active:scale-95"
-                        style={{
-                          background: 'rgba(92,181,22,0.12)',
-                          border: '1px solid rgba(92,181,22,0.25)',
-                          color: '#9de360',
-                        }}
+                        style={{ background: 'rgba(92,181,22,0.12)', border: '1px solid rgba(92,181,22,0.25)', color: '#9de360' }}
                       >
                         <p className="font-mono font-bold text-base">
                           {secs < 60 ? `${secs}s` : `${secs / 60}m`}
                         </p>
-                        <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.45)' }}>
-                          aviso
-                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.45)' }}>aviso</p>
                       </button>
                     ))}
                   </div>
@@ -268,8 +279,7 @@ export default function AdminSorteo() {
                 </div>
 
                 <button
-                  onClick={() => { setPhase('spinning'); drawMutation.mutate(); }}
-                  disabled={drawMutation.isPending}
+                  onClick={handleDraw}
                   className="btn-primary w-full py-5 text-xl"
                 >
                   🎰 ¡SORTEAR AHORA!
@@ -284,23 +294,13 @@ export default function AdminSorteo() {
           <div className="space-y-5">
             <Countdown
               seconds={countdownSecs}
-              onDone={() => {
-                setPhase('spinning');
-                drawMutation.mutate();
-              }}
+              onDone={handleDraw}
             />
             <div className="flex gap-3">
-              <button
-                onClick={() => setPhase('ready')}
-                className="btn-secondary flex-1 py-3 text-sm"
-              >
-                Cancelar aviso
+              <button onClick={() => setPhase('ready')} className="btn-secondary flex-1 py-3 text-sm">
+                Cancelar
               </button>
-              <button
-                onClick={() => { setPhase('spinning'); drawMutation.mutate(); }}
-                disabled={drawMutation.isPending}
-                className="btn-primary flex-1 py-3 text-sm"
-              >
+              <button onClick={handleDraw} className="btn-primary flex-1 py-3 text-sm">
                 🎰 Sortear ya
               </button>
             </div>
@@ -324,13 +324,9 @@ export default function AdminSorteo() {
 
             <div className="flex justify-center items-end gap-1.5 h-12">
               {[...Array(9)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="w-1.5 rounded-full"
-                  style={{ background: '#5cb516' }}
+                <motion.div key={i} className="w-1.5 rounded-full" style={{ background: '#5cb516' }}
                   animate={{ height: ['16px', `${20 + Math.random() * 30}px`, '16px'] }}
-                  transition={{ repeat: Infinity, duration: 0.5 + Math.random() * 0.3, delay: i * 0.06 }}
-                />
+                  transition={{ repeat: Infinity, duration: 0.5 + Math.random() * 0.3, delay: i * 0.06 }} />
               ))}
             </div>
 
@@ -341,14 +337,8 @@ export default function AdminSorteo() {
         {/* WINNER */}
         {phase === 'winner' && winner && (
           <div className="space-y-5 text-center">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 180 }}
-              className="text-6xl"
-            >
-              🏆
-            </motion.div>
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 180 }} className="text-6xl">🏆</motion.div>
 
             <div>
               <p className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: '#9de360' }}>
@@ -358,8 +348,7 @@ export default function AdminSorteo() {
             </div>
 
             <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
+              initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
               className="winner-glow rounded-2xl p-5 text-left"
               style={{ background: 'rgba(92,181,22,0.10)', border: '1px solid rgba(92,181,22,0.30)' }}
@@ -383,18 +372,12 @@ export default function AdminSorteo() {
             </motion.div>
 
             <motion.div
-              initial={{ y: 15, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="space-y-3"
+              initial={{ y: 15, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5 }} className="space-y-3"
             >
-              <a
-                href={buildWhatsAppLink(winner)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-xl font-bold text-white transition-all active:scale-95"
-                style={{ background: 'linear-gradient(135deg, #25d366, #128c7e)', boxShadow: '0 4px 20px rgba(37,211,102,0.25)' }}
-              >
+              <a href={buildWhatsAppLink(winner)} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-xl font-bold text-white active:scale-95 transition-all"
+                style={{ background: 'linear-gradient(135deg, #25d366, #128c7e)', boxShadow: '0 4px 20px rgba(37,211,102,0.25)' }}>
                 <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                 </svg>
@@ -408,7 +391,6 @@ export default function AdminSorteo() {
         )}
       </div>
 
-      {/* Participantes */}
       {phase === 'ready' && entries.length > 0 && (
         <div>
           <p className="text-xs font-medium uppercase tracking-wider mb-2"
