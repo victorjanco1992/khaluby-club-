@@ -195,40 +195,10 @@ export const performDraw = async (req, res, next) => {
     if (raffle.entries.length === 0) return res.status(400).json({ error: 'No hay participantes' });
     if (raffle.status === 'FINISHED') return res.status(400).json({ error: 'Sorteo ya finalizado' });
 
-    await prisma.liveState.upsert({
-      where: { id: 'singleton' },
-      create: {
-        id: 'singleton',
-        phase: 'drawing',
-        raffleId: id,
-        raffleTitle: raffle.title,
-        prize: raffle.prize,
-        prizeImage: raffle.prizeImage,
-      },
-      update: {
-        phase: 'drawing',
-        raffleId: id,
-        raffleTitle: raffle.title,
-        prize: raffle.prize,
-        prizeImage: raffle.prizeImage,
-        winnerNumber: null,
-        winnerName: null,
-        secondsUntilStart: null,
-      },
-    });
-
+    // Elegir ganador
     const winnerEntry = raffle.entries[Math.floor(Math.random() * raffle.entries.length)];
     const losers = raffle.entries.filter(e => e.userId !== winnerEntry.userId);
     const uniqueLoserIds = [...new Set(losers.map(e => e.userId))];
-
-    await prisma.raffle.update({
-      where: { id },
-      data: {
-        status: 'FINISHED',
-        winnerId: winnerEntry.userId,
-        winnerNumber: winnerEntry.number,
-      },
-    });
 
     const winner = {
       userId: winnerEntry.userId,
@@ -243,23 +213,46 @@ export const performDraw = async (req, res, next) => {
       date: new Date().toISOString(),
     };
 
-    await prisma.liveState.update({
-      where: { id: 'singleton' },
+    // ✅ Emitir SPINNING antes de guardar — para que el cliente vea la animación
+    // El ganador ya está elegido pero no lo revelamos todavía
+    const spinDurationMs = 5000;
+    const numbers = raffle.entries.map(e => e.number);
+
+    io.emit('raffle:spinning', {
+      raffleId: id,
+      raffleTitle: raffle.title,
+      prize: raffle.prize,
+      prizeImage: raffle.prizeImage,
+      spinDurationMs,
+      numbers,
+    });
+
+    // Guardar resultado en DB
+    await prisma.raffle.update({
+      where: { id },
       data: {
-        phase: 'finished',
+        status: 'FINISHED',
+        winnerId: winnerEntry.userId,
         winnerNumber: winnerEntry.number,
-        winnerName: winnerEntry.user.name,
       },
     });
 
+    // Emitir ganador a todos (público, sin DNI ni teléfono)
+    io.emit('raffle:winner', {
+      raffleId: id,
+      winner: {
+        number: winner.number,
+        name: winner.name,
+        prize: raffle.prize,
+        prizeImage: raffle.prizeImage,
+        raffleTitle: raffle.title,
+      },
+    });
+
+    io.emit('raffle:finished', { raffleId: id });
+
+    // Notificación personal al ganador
     try {
-      emitRaffleEvent(io, id, 'raffle:winner', {
-        winner: { ...winner, dni: winner.dni.slice(0, -3) + '***' },
-      });
-      io.emit('raffle:finished', {
-        raffleId: id,
-        winner: { name: winner.name, number: winner.number, prize: winner.prize, prizeImage: winner.prizeImage },
-      });
       io.to(`user:${winnerEntry.userId}`).emit('user:won', {
         number: winner.number,
         prize: raffle.prize,
@@ -268,6 +261,7 @@ export const performDraw = async (req, res, next) => {
         raffleId: id,
         date: winner.date,
       });
+
       uniqueLoserIds.forEach(userId => {
         io.to(`user:${userId}`).emit('user:lost', {
           raffleTitle: raffle.title,
@@ -276,8 +270,11 @@ export const performDraw = async (req, res, next) => {
           raffleId: id,
         });
       });
-    } catch {}
+    } catch (socketErr) {
+      console.warn('Socket personal emit error:', socketErr.message);
+    }
 
+    // Notificaciones persistentes en DB
     await prisma.notification.create({
       data: {
         userId: winnerEntry.userId,
