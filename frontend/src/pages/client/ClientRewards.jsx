@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api.js';
@@ -41,6 +41,12 @@ export default function ClientRewards() {
   const { user, refreshMe } = useAuthStore();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(null);
+
+  // Refrescar usuario al montar — así si el admin rechazó un canje,
+  // el cliente ve sus puntos actualizados sin necesidad de reloguearse
+  useEffect(() => {
+    refreshMe();
+  }, []);
 
   const { data: rewardsData } = useQuery({
     queryKey: ['rewards'],
