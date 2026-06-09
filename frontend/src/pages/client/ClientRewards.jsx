@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api.js';
 import { useAuthStore } from '../../stores/authStore.js';
+import { getSocket } from '../../lib/socket.js';
 import toast from 'react-hot-toast';
 
 const LEVELS = [
@@ -42,11 +43,27 @@ export default function ClientRewards() {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(null);
 
-  // Refrescar usuario al montar — así si el admin rechazó un canje,
-  // el cliente ve sus puntos actualizados sin necesidad de reloguearse
+  // Refrescar al montar e invalidar cooldown
   useEffect(() => {
-    refreshMe();
+    refreshMe().then(() => {
+      queryClient.invalidateQueries({ queryKey: ['rewards'] });
+    });
   }, []);
+
+  // Escuchar evento socket cuando el admin aprueba/rechaza
+  useEffect(() => {
+    if (!user?.id) return;
+    const socket = getSocket(user.id);
+
+    socket.on('points:updated', () => {
+      refreshMe().then(() => {
+        queryClient.invalidateQueries({ queryKey: ['rewards'] });
+        queryClient.invalidateQueries({ queryKey: ['my-redemptions'] });
+      });
+    });
+
+    return () => socket.off('points:updated');
+  }, [user?.id]);
 
   const { data: rewardsData } = useQuery({
     queryKey: ['rewards'],
