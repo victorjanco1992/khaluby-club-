@@ -4,12 +4,14 @@ import {
   activateRaffle, performDraw, resetRaffle, getUserRaffleNumbers,
   updateRaffle, deleteRaffle, getMyWin,
   notifyRaffleStarting, notifyRaffleSpinning,
+  getLiveStatus,
 } from '../controllers/raffles.controller.js';
 import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 
 export const rafflesRouter = Router();
 
 rafflesRouter.get('/last', getLastRaffle);
+rafflesRouter.get('/live-status', getLiveStatus);
 rafflesRouter.get('/my-numbers', authenticate, getUserRaffleNumbers);
 rafflesRouter.get('/my-win', authenticate, getMyWin);
 rafflesRouter.get('/', authenticate, getRaffles);
