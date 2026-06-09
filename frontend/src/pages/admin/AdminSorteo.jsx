@@ -81,7 +81,7 @@ function Countdown({ seconds, onDone }) {
           <span className="font-mono font-black text-3xl text-white">{remaining}</span>
         </div>
       </div>
-      <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>segundos para el sorteo</p>
+      <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>segundos</p>
     </div>
   );
 }
@@ -94,10 +94,8 @@ function buildWhatsAppLink(winner) {
   const msg = encodeURIComponent(
     `¡Hola ${winner.name}! 🎉\n\n` +
     `Te contactamos desde *Despensa Khaluby* para avisarte que ¡*GANASTE* el sorteo!\n\n` +
-    `🏆 Premio: *${winner.prize}*\n` +
-    `🎫 Sorteo: ${winner.raffleTitle}\n` +
-    `🔢 Tu número ganador: *#${winner.number}*\n\n` +
-    `Pasate por la despensa para reclamar tu premio. ¡Felicitaciones! 🥳`
+    `🏆 Premio: *${winner.prize}*\n🎫 Sorteo: ${winner.raffleTitle}\n` +
+    `🔢 Tu número: *#${winner.number}*\n\nPasate por la despensa. ¡Felicitaciones! 🥳`
   );
   return `https://wa.me/${phone}?text=${msg}`;
 }
@@ -123,11 +121,8 @@ export default function AdminSorteo() {
     };
   }, []);
 
-  // Notificar que empieza
   const notifyMutation = useMutation({
-    mutationFn: (secs) => api.post(`/api/raffles/${id}/notify-starting`, {
-      secondsUntilStart: secs,
-    }),
+    mutationFn: (secs) => api.post(`/api/raffles/${id}/notify-starting`, { secondsUntilStart: secs }),
     onSuccess: (_, secs) => {
       setCountdownSecs(secs);
       setPhase('countdown');
@@ -136,28 +131,36 @@ export default function AdminSorteo() {
     onError: () => toast.error('Error al enviar aviso'),
   });
 
-  // Paso 1: avisar a clientes que empieza el spinning
-  const notifySpinningMutation = useMutation({
-    mutationFn: () => api.post(`/api/raffles/${id}/notify-spinning`, {
-      numbers: raffle?.entries?.map(e => e.number) || [],
-      spinDurationMs: SPIN_DURATION,
-    }),
-  });
-
-  // Paso 2: realizar el sorteo
-  const drawMutation = useMutation({
+  // Paso 1: iniciar sorteo (guarda DRAWING, el backend ya eligió el ganador)
+  const startDrawMutation = useMutation({
     mutationFn: () => api.post(`/api/raffles/${id}/draw`),
     onSuccess: (res) => {
       const w = res.data.winner;
       const entries = raffle?.entries || [];
-      const numbers = entries.map(e => e.number);
+      const numbers = entries.length > 0 ? entries.map(e => e.number) : [1, 2, 3];
 
-      spinTimeoutRef.current = setTimeout(() => {
+      // Animar localmente
+      setPhase('spinning');
+      clearInterval(spinIntervalRef.current);
+      spinIntervalRef.current = setInterval(() => {
+        setDisplayNum(numbers[Math.floor(Math.random() * numbers.length)]);
+      }, 80);
+
+      // Después de SPIN_DURATION mostrar resultado y confirmar al backend
+      spinTimeoutRef.current = setTimeout(async () => {
         clearInterval(spinIntervalRef.current);
         setDisplayNum(w.number);
         setWinner(w);
         setPhase('winner');
         setTimeout(() => launchFireworks(), 300);
+
+        // Paso 2: confirmar ganador al backend — ahora sí se guarda FINISHED
+        // y se notifica a todos los clientes
+        try {
+          await api.post(`/api/raffles/${id}/confirm-winner`);
+        } catch (e) {
+          console.warn('confirm-winner error:', e.message);
+        }
       }, SPIN_DURATION);
     },
     onError: (err) => {
@@ -167,28 +170,11 @@ export default function AdminSorteo() {
     },
   });
 
-  // Iniciar sorteo completo
   const handleDraw = () => {
     if (!raffle || (raffle.entries?.length || 0) === 0) {
       return toast.error('No hay participantes');
     }
-
-    const entries = raffle.entries || [];
-    const numbers = entries.map(e => e.number);
-
-    // 1. Mostrar spinning en admin
-    setPhase('spinning');
-    setWinner(null);
-    clearInterval(spinIntervalRef.current);
-    spinIntervalRef.current = setInterval(() => {
-      setDisplayNum(numbers[Math.floor(Math.random() * numbers.length)]);
-    }, 80);
-
-    // 2. Avisar a clientes que empieza (socket)
-    notifySpinningMutation.mutate();
-
-    // 3. Llamar al backend para sortear
-    drawMutation.mutate();
+    startDrawMutation.mutate();
   };
 
   if (isLoading) {
@@ -231,6 +217,7 @@ export default function AdminSorteo() {
       )}
 
       <div className="card p-6">
+
         {/* READY */}
         {phase === 'ready' && (
           <div className="space-y-4">
@@ -245,13 +232,12 @@ export default function AdminSorteo() {
               </div>
             ) : (
               <>
-                {/* Avisar antes */}
                 <div className="rounded-2xl p-4 space-y-3"
                   style={{ background: 'rgba(92,181,22,0.06)', border: '1px solid rgba(92,181,22,0.15)' }}>
                   <div>
                     <p className="font-semibold text-white text-sm">📢 Avisá antes de sortear</p>
                     <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.50)' }}>
-                      Los clientes reciben una notificación y pueden ver el sorteo en vivo
+                      Los clientes reciben notificación y pueden ver el sorteo en vivo
                     </p>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
@@ -280,6 +266,7 @@ export default function AdminSorteo() {
 
                 <button
                   onClick={handleDraw}
+                  disabled={startDrawMutation.isPending}
                   className="btn-primary w-full py-5 text-xl"
                 >
                   🎰 ¡SORTEAR AHORA!
@@ -292,15 +279,16 @@ export default function AdminSorteo() {
         {/* COUNTDOWN */}
         {phase === 'countdown' && (
           <div className="space-y-5">
-            <Countdown
-              seconds={countdownSecs}
-              onDone={handleDraw}
-            />
+            <Countdown seconds={countdownSecs} onDone={handleDraw} />
             <div className="flex gap-3">
               <button onClick={() => setPhase('ready')} className="btn-secondary flex-1 py-3 text-sm">
                 Cancelar
               </button>
-              <button onClick={handleDraw} className="btn-primary flex-1 py-3 text-sm">
+              <button
+                onClick={handleDraw}
+                disabled={startDrawMutation.isPending}
+                className="btn-primary flex-1 py-3 text-sm"
+              >
                 🎰 Sortear ya
               </button>
             </div>
@@ -376,8 +364,8 @@ export default function AdminSorteo() {
               transition={{ delay: 0.5 }} className="space-y-3"
             >
               <a href={buildWhatsAppLink(winner)} target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-4 rounded-xl font-bold text-white active:scale-95 transition-all"
-                style={{ background: 'linear-gradient(135deg, #25d366, #128c7e)', boxShadow: '0 4px 20px rgba(37,211,102,0.25)' }}>
+                className="flex items-center justify-center gap-2 w-full py-4 rounded-xl font-bold text-white active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #25d366, #128c7e)' }}>
                 <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                 </svg>
