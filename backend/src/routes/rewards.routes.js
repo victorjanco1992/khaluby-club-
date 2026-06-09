@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { getRewards, createReward, updateReward, redeemReward, getRedemptions } from '../controllers/rewards.controller.js';
 import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 import { prisma } from '../lib/prisma.js';
+import { io } from '../index.js';
 
 export const rewardsRouter = Router();
 
 rewardsRouter.get('/redemptions', authenticate, getRedemptions);
 rewardsRouter.get('/', authenticate, getRewards);
 rewardsRouter.post('/:id/redeem', authenticate, redeemReward);
-
 rewardsRouter.post('/', authenticate, requireAdmin, createReward);
 rewardsRouter.put('/:id', authenticate, requireAdmin, updateReward);
 
@@ -33,23 +33,18 @@ rewardsRouter.patch('/redemptions/:id', authenticate, requireAdmin, async (req, 
     }
 
     if (status === 'REJECTED') {
-      // ✅ Devolver puntos Y resetear el cooldown
       await prisma.$transaction([
-        // Actualizar estado del canje
         prisma.redemption.update({
           where: { id },
           data: { status: 'REJECTED' },
         }),
-        // Devolver los puntos al usuario
         prisma.user.update({
           where: { id: existing.userId },
           data: {
             points: { increment: existing.points },
-            // Resetear cooldown — null significa que puede canjear de nuevo
             lastRedemptionAt: null,
           },
         }),
-        // Si el reward tenía stock limitado, devolvérselo también
         ...(existing.reward.stock >= 0 ? [
           prisma.reward.update({
             where: { id: existing.rewardId },
@@ -58,6 +53,14 @@ rewardsRouter.patch('/redemptions/:id', authenticate, requireAdmin, async (req, 
         ] : []),
       ]);
 
+      // Notificar al cliente en tiempo real
+      try {
+        io.to(`user:${existing.userId}`).emit('points:updated', {
+          points: existing.user.points + existing.points,
+          cooldownReset: true,
+        });
+      } catch {}
+
       return res.json({
         message: `Canje rechazado — ${existing.points} puntos devueltos a ${existing.user.name}`,
         pointsReturned: existing.points,
@@ -65,14 +68,19 @@ rewardsRouter.patch('/redemptions/:id', authenticate, requireAdmin, async (req, 
       });
     }
 
-    // APPROVED — solo actualizar estado
+    // APPROVED
     await prisma.redemption.update({
       where: { id },
       data: { status: 'APPROVED' },
     });
 
-    res.json({
-      message: `Canje aprobado para ${existing.user.name}`,
-    });
+    // Notificar al cliente en tiempo real
+    try {
+      io.to(`user:${existing.userId}`).emit('points:updated', {
+        cooldownReset: false,
+      });
+    } catch {}
+
+    res.json({ message: `Canje aprobado para ${existing.user.name}` });
   } catch (error) { next(error); }
 });
