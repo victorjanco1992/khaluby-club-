@@ -43,45 +43,49 @@ export default function ClientRewards() {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(null);
 
-  // Refrescar al montar e invalidar cooldown
+  const { data: rewardsData, refetch: refetchRewards } = useQuery({
+    queryKey: ['rewards'],
+    queryFn: () => api.get('/api/rewards').then(r => r.data),
+    staleTime: 0,        // siempre considerar stale → refetch al montar
+    gcTime: 0,           // no guardar en caché al desmontar
+  });
+
+  const { data: redemptionsData, refetch: refetchRedemptions } = useQuery({
+    queryKey: ['my-redemptions'],
+    queryFn: () => api.get('/api/rewards/redemptions').then(r => r.data),
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  // Refrescar usuario + queries al montar
   useEffect(() => {
-    refreshMe().then(() => {
-      queryClient.invalidateQueries({ queryKey: ['rewards'] });
-    });
+    refreshMe();
+    refetchRewards();
+    refetchRedemptions();
   }, []);
 
-  // Escuchar evento socket cuando el admin aprueba/rechaza
+  // Escuchar socket: cuando el admin aprueba/rechaza, actualizar todo al instante
   useEffect(() => {
     if (!user?.id) return;
     const socket = getSocket(user.id);
 
-    socket.on('points:updated', () => {
-      refreshMe().then(() => {
-        queryClient.invalidateQueries({ queryKey: ['rewards'] });
-        queryClient.invalidateQueries({ queryKey: ['my-redemptions'] });
-      });
-    });
+    const handlePointsUpdated = () => {
+      refreshMe();
+      refetchRewards();
+      refetchRedemptions();
+    };
 
-    return () => socket.off('points:updated');
+    socket.on('points:updated', handlePointsUpdated);
+    return () => socket.off('points:updated', handlePointsUpdated);
   }, [user?.id]);
-
-  const { data: rewardsData } = useQuery({
-    queryKey: ['rewards'],
-    queryFn: () => api.get('/api/rewards').then(r => r.data),
-  });
-
-  const { data: redemptionsData } = useQuery({
-    queryKey: ['my-redemptions'],
-    queryFn: () => api.get('/api/rewards/redemptions').then(r => r.data),
-  });
 
   const redeemMutation = useMutation({
     mutationFn: (id) => api.post(`/api/rewards/${id}/redeem`),
     onSuccess: (res) => {
       toast.success(res.data.message);
-      queryClient.invalidateQueries({ queryKey: ['rewards'] });
-      queryClient.invalidateQueries({ queryKey: ['my-redemptions'] });
       refreshMe();
+      refetchRewards();
+      refetchRedemptions();
       setConfirming(null);
     },
     onError: (err) => {
