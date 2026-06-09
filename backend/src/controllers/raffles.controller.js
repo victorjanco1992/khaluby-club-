@@ -403,7 +403,6 @@ export const getLiveStatus = async (req, res, next) => {
     res.json({ phase: 'idle' });
   } catch (error) { next(error); }
 };
-
 export const notifyRaffleStarting = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -412,42 +411,32 @@ export const notifyRaffleStarting = async (req, res, next) => {
     const raffle = await prisma.raffle.findUnique({ where: { id } });
     if (!raffle) return res.status(404).json({ error: 'Sorteo no encontrado' });
 
-    await prisma.liveState.upsert({
-      where: { id: 'singleton' },
-      create: {
-        id: 'singleton',
-        phase: 'starting_soon',
-        raffleId: id,
-        raffleTitle: raffle.title,
-        prize: raffle.prize,
-        prizeImage: raffle.prizeImage,
-        secondsUntilStart,
-      },
-      update: {
-        phase: 'starting_soon',
-        raffleId: id,
-        raffleTitle: raffle.title,
-        prize: raffle.prize,
-        prizeImage: raffle.prizeImage,
-        secondsUntilStart,
-        winnerNumber: null,
-        winnerName: null,
+    const broadcastData = {
+      raffleId: id,
+      raffleTitle: raffle.title,
+      prize: raffle.prize,
+      prizeImage: raffle.prizeImage,
+      secondsUntilStart,
+      startsAt: new Date(Date.now() + secondsUntilStart * 1000).toISOString(),
+    };
+
+    // Guardar en DB para que el polling lo detecte
+    await prisma.raffleBroadcast.create({
+      data: {
+        type: 'starting-soon',
+        data: broadcastData,
       },
     });
 
+    // También intentar por socket (best-effort)
     try {
-      io.emit('raffle:starting-soon', {
-        raffleId: id,
-        raffleTitle: raffle.title,
-        prize: raffle.prize,
-        prizeImage: raffle.prizeImage,
-        secondsUntilStart,
-      });
-    } catch {}
+      io.emit('raffle:starting-soon', broadcastData);
+    } catch (e) { console.warn('socket starting-soon:', e.message); }
 
-    res.json({ message: `Notificación enviada — sorteo en ${secondsUntilStart} segundos` });
+    res.json({ message: `Aviso guardado — sorteo en ${secondsUntilStart}s` });
   } catch (error) { next(error); }
 };
+
 // Avisar a clientes que los números están girando
 export const notifyRaffleSpinning = async (req, res, next) => {
   try {
