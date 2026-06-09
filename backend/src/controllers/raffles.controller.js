@@ -459,3 +459,17 @@ export const notifyRaffleSpinning = async (req, res, next) => {
     res.json({ message: 'Spinning notificado' });
   } catch (error) { next(error); }
 };
+// Último broadcast para polling del cliente
+export const getBroadcast = async (req, res, next) => {
+  try {
+    // Broadcasts de los últimos 3 minutos
+    const cutoff = new Date(Date.now() - 3 * 60 * 1000);
+    const broadcast = await prisma.raffleBroadcast.findFirst({
+      where: { createdAt: { gte: cutoff } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!broadcast) return res.json({ broadcast: null });
+    res.json({ broadcast });
+  } catch (error) { next(error); }
+};
