@@ -215,10 +215,8 @@ function LiveScreen({ phase, currentNum, winner, raffleInfo, onClose }) {
               <p className="font-semibold" style={{ color: '#fde68a' }}>🏆 {raffleInfo?.prize}</p>
             </div>
 
-            {/* ===== NÚMEROS GIRANDO — igual que el admin ===== */}
             <NumberDisplay value={currentNum} isSpinning={true} />
 
-            {/* Barras animadas */}
             <div className="flex justify-center items-end gap-1.5 h-10">
               {[...Array(9)].map((_, i) => (
                 <motion.div
@@ -318,23 +316,22 @@ export default function LiveRaffleOverlay() {
 
   const spinIntervalRef = useRef(null);
   const processedRef = useRef({ drawing: null, finished: null });
+  const processedBroadcastRef = useRef(null);
 
-  // ===== POLLING — mecanismo principal =====
+  // ===== POLLING live-status =====
   const { data: liveStatus } = useQuery({
     queryKey: ['live-status'],
     queryFn: () => api.get('/api/raffles/live-status').then(r => r.data).catch(() => ({ phase: 'idle' })),
     enabled: isAuthenticated() && !isAdmin(),
-    refetchInterval: 1500, // cada 1.5 segundos
+    refetchInterval: 1500,
     refetchIntervalInBackground: true,
   });
 
-  // Reaccionar al estado del polling
   useEffect(() => {
     if (!liveStatus) return;
 
     if (liveStatus.phase === 'drawing') {
       const r = liveStatus.raffle;
-      // Solo mostrar si no lo estamos mostrando ya para este sorteo
       if (processedRef.current.drawing === r.id) return;
       processedRef.current.drawing = r.id;
       processedRef.current.finished = null;
@@ -348,7 +345,6 @@ export default function LiveRaffleOverlay() {
       setLivePhase('spinning');
       setShowLive(true);
 
-      // Animar números
       const nums = r.numbers?.length > 0 ? r.numbers : [1, 2, 3];
       clearInterval(spinIntervalRef.current);
       spinIntervalRef.current = setInterval(() => {
@@ -358,7 +354,6 @@ export default function LiveRaffleOverlay() {
 
     if (liveStatus.phase === 'finished') {
       const r = liveStatus.raffle;
-      // Solo mostrar si no lo mostramos ya para este sorteo
       if (processedRef.current.finished === r.id) return;
       processedRef.current.finished = r.id;
 
@@ -375,16 +370,58 @@ export default function LiveRaffleOverlay() {
       setShowLive(true);
       launchFireworks();
 
-      // Actualizar notificaciones y lista de sorteos
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['raffles-client'] });
     }
-
-    if (liveStatus.phase === 'idle') {
-      // Si estaba en spinning y ahora está idle → el poll no llegó a ver el finished
-      // No hacer nada, el socket o el próximo poll lo resolverá
-    }
   }, [liveStatus?.phase, liveStatus?.raffle?.id]);
+
+  // ===== POLLING broadcast (aviso previo + spinning) =====
+  const { data: broadcastData } = useQuery({
+    queryKey: ['live-broadcast'],
+    queryFn: () => api.get('/api/raffles/broadcast').then(r => r.data).catch(() => ({ broadcast: null })),
+    enabled: isAuthenticated() && !isAdmin(),
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
+  });
+
+  useEffect(() => {
+    if (!broadcastData?.broadcast) return;
+    const b = broadcastData.broadcast;
+    if (processedBroadcastRef.current === b.id) return;
+    processedBroadcastRef.current = b.id;
+
+    const data = b.data;
+
+    if (b.type === 'starting-soon') {
+      const startsAt = new Date(data.startsAt).getTime();
+      const secsLeft = Math.max(0, Math.round((startsAt - Date.now()) / 1000));
+      if (secsLeft > 0) {
+        setStartingSoon({ ...data, secondsUntilStart: secsLeft });
+      }
+    }
+
+    if (b.type === 'spinning') {
+      if (processedRef.current.drawing === data.raffleId) return;
+      processedRef.current.drawing = data.raffleId;
+      processedRef.current.finished = null;
+
+      setRaffleInfo({
+        raffleTitle: data.raffleTitle,
+        prize: data.prize,
+        prizeImage: data.prizeImage,
+      });
+      setWinner(null);
+      setLivePhase('spinning');
+      setShowLive(true);
+
+      const nums = data.numbers?.length > 0 ? data.numbers : [1, 2, 3];
+      clearInterval(spinIntervalRef.current);
+      spinIntervalRef.current = setInterval(() => {
+        setCurrentNum(nums[Math.floor(Math.random() * nums.length)]);
+      }, 80);
+      setTimeout(() => clearInterval(spinIntervalRef.current), data.spinDurationMs || 6000);
+    }
+  }, [broadcastData?.broadcast?.id, broadcastData?.broadcast?.type]);
 
   // ===== SOCKET — complementa el polling cuando funciona =====
   useEffect(() => {
@@ -395,7 +432,6 @@ export default function LiveRaffleOverlay() {
       setStartingSoon(data);
     });
 
-    // Socket como fast-path — si llega antes que el polling, mejor
     socket.on('raffle:spinning', (data) => {
       if (processedRef.current.drawing === data.raffleId) return;
       processedRef.current.drawing = data.raffleId;
