@@ -337,11 +337,70 @@ export const getUserRaffleNumbers = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// Estado del sorteo en curso — para polling del cliente
 export const getLiveStatus = async (req, res, next) => {
   try {
-    const state = await prisma.liveState.findUnique({ where: { id: 'singleton' } });
-    if (!state) return res.json({ phase: 'idle' });
-    res.json(state);
+    // Buscar sorteo en DRAWING
+    const drawing = await prisma.raffle.findFirst({
+      where: { status: 'DRAWING' },
+      select: {
+        id: true,
+        title: true,
+        prize: true,
+        prizeImage: true,
+        status: true,
+        updatedAt: true,
+        entries: { select: { number: true } },
+      },
+    });
+
+    if (drawing) {
+      return res.json({
+        phase: 'drawing',
+        raffle: {
+          id: drawing.id,
+          title: drawing.title,
+          prize: drawing.prize,
+          prizeImage: drawing.prizeImage,
+          numbers: drawing.entries.map(e => e.number),
+        },
+      });
+    }
+
+    // Buscar sorteo recién finalizado (últimos 60 segundos)
+    const recentFinished = await prisma.raffle.findFirst({
+      where: {
+        status: 'FINISHED',
+        updatedAt: { gte: new Date(Date.now() - 60000) },
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        entries: {
+          where: { number: { gt: 0 } },
+          include: { user: { select: { name: true } } },
+        },
+      },
+    });
+
+    if (recentFinished?.winnerNumber) {
+      const winnerEntry = recentFinished.entries.find(
+        e => e.number === recentFinished.winnerNumber
+      );
+      return res.json({
+        phase: 'finished',
+        raffle: {
+          id: recentFinished.id,
+          title: recentFinished.title,
+          prize: recentFinished.prize,
+          prizeImage: recentFinished.prizeImage,
+          winnerNumber: recentFinished.winnerNumber,
+          winnerName: winnerEntry?.user?.name || 'Ganador',
+          finishedAt: recentFinished.updatedAt,
+        },
+      });
+    }
+
+    res.json({ phase: 'idle' });
   } catch (error) { next(error); }
 };
 
