@@ -94,7 +94,7 @@ function RewardFormModal({ reward, onClose, onSaved }) {
 
 export default function AdminRewards() {
   const queryClient = useQueryClient();
-  const [modal, setModal] = useState(null); // null | 'create' | reward object
+  const [modal, setModal] = useState(null);
 
   const { data } = useQuery({
     queryKey: ['admin-rewards'],
@@ -108,10 +108,16 @@ export default function AdminRewards() {
 
   const approveRedemptionMutation = useMutation({
     mutationFn: ({ id, status }) => api.patch(`/api/rewards/redemptions/${id}`, { status }),
-    onSuccess: () => {
-      toast.success('Estado actualizado');
+    onSuccess: (res, { status }) => {
+      const d = res.data;
+      if (status === 'REJECTED') {
+        toast.success(d.message || 'Canje rechazado — puntos devueltos', { duration: 4000 });
+      } else {
+        toast.success(d.message || 'Canje aprobado');
+      }
       queryClient.invalidateQueries({ queryKey: ['all-redemptions'] });
     },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error al procesar'),
   });
 
   const rewards = data?.rewards || [];
@@ -128,7 +134,7 @@ export default function AdminRewards() {
         <button onClick={() => setModal('create')} className="btn-primary">+ Nueva recompensa</button>
       </div>
 
-      {/* Pending redemptions alert */}
+      {/* Pending redemptions */}
       {pendingRedemptions.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-4 border border-yellow-500/30">
           <p className="text-yellow-400 font-semibold mb-3">⚠️ {pendingRedemptions.length} canje(s) pendiente(s) de aprobación</p>
@@ -142,13 +148,15 @@ export default function AdminRewards() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => approveRedemptionMutation.mutate({ id: r.id, status: 'APPROVED' })}
-                    className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 border border-green-500/30 text-xs font-medium hover:bg-green-500/30"
+                    disabled={approveRedemptionMutation.isPending}
+                    className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 border border-green-500/30 text-xs font-medium hover:bg-green-500/30 disabled:opacity-50"
                   >
                     ✓ Aprobar
                   </button>
                   <button
                     onClick={() => approveRedemptionMutation.mutate({ id: r.id, status: 'REJECTED' })}
-                    className="px-3 py-1 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium hover:bg-red-500/30"
+                    disabled={approveRedemptionMutation.isPending}
+                    className="px-3 py-1 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium hover:bg-red-500/30 disabled:opacity-50"
                   >
                     ✕ Rechazar
                   </button>
