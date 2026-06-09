@@ -473,3 +473,188 @@ export const getBroadcast = async (req, res, next) => {
     res.json({ broadcast });
   } catch (error) { next(error); }
 };
+
+// Paso 1: iniciar sorteo — solo guarda DRAWING y elige ganador
+export const startDraw = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const raffle = await prisma.raffle.findUnique({
+      where: { id },
+      include: {
+        entries: {
+          include: {
+            user: { select: { id: true, name: true, dni: true, phone: true } },
+          },
+        },
+      },
+    });
+
+    if (!raffle) return res.status(404).json({ error: 'Sorteo no encontrado' });
+    if (raffle.entries.length === 0) return res.status(400).json({ error: 'No hay participantes' });
+    if (raffle.status === 'FINISHED') return res.status(400).json({ error: 'Ya finalizado' });
+
+    // Elegir ganador
+    const winnerEntry = raffle.entries[Math.floor(Math.random() * raffle.entries.length)];
+
+    // Guardar en DB como DRAWING con el ganador ya decidido
+    // (el ganador está en DB pero no se revela todavía)
+    await prisma.raffle.update({
+      where: { id },
+      data: {
+        status: 'DRAWING',
+        winnerId: winnerEntry.userId,
+        winnerNumber: winnerEntry.number,
+      },
+    });
+
+    // Guardar broadcast de spinning
+    const broadcastData = {
+      raffleId: id,
+      raffleTitle: raffle.title,
+      prize: raffle.prize,
+      prizeImage: raffle.prizeImage,
+      numbers: raffle.entries.map(e => e.number),
+      spinDurationMs: 5000,
+    };
+
+    await prisma.raffleBroadcast.create({
+      data: { type: 'spinning', data: broadcastData },
+    });
+
+    try {
+      io.emit('raffle:spinning', broadcastData);
+    } catch (e) { console.warn('socket spinning:', e.message); }
+
+    // Responder con el ganador al admin para que lo muestre
+    // después de su animación local
+    res.json({
+      message: 'Sorteo iniciado',
+      winner: {
+        userId: winnerEntry.userId,
+        number: winnerEntry.number,
+        name: winnerEntry.user.name,
+        dni: winnerEntry.user.dni,
+        phone: winnerEntry.user.phone,
+        prize: raffle.prize,
+        prizeImage: raffle.prizeImage,
+        raffleTitle: raffle.title,
+        raffleId: id,
+        date: new Date().toISOString(),
+      },
+    });
+  } catch (error) { next(error); }
+};
+
+// Paso 2: confirmar ganador — llamado por el admin DESPUÉS de su animación
+export const confirmWinner = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const raffle = await prisma.raffle.findUnique({
+      where: { id },
+      include: {
+        entries: {
+          include: {
+            user: { select: { id: true, name: true, dni: true, phone: true } },
+          },
+        },
+      },
+    });
+
+    if (!raffle) return res.status(404).json({ error: 'Sorteo no encontrado' });
+    if (!raffle.winnerId) return res.status(400).json({ error: 'No hay ganador definido' });
+
+    const winnerEntry = raffle.entries.find(e => e.userId === raffle.winnerId);
+    const losers = raffle.entries.filter(e => e.userId !== raffle.winnerId);
+    const uniqueLoserIds = [...new Set(losers.map(e => e.userId))];
+
+    // Ahora sí marcar como FINISHED
+    await prisma.raffle.update({
+      where: { id },
+      data: { status: 'FINISHED' },
+    });
+
+    const winner = {
+      number: raffle.winnerNumber,
+      name: winnerEntry?.user?.name || 'Ganador',
+      prize: raffle.prize,
+      prizeImage: raffle.prizeImage,
+      raffleTitle: raffle.title,
+    };
+
+    // Guardar broadcast del ganador
+    await prisma.raffleBroadcast.create({
+      data: {
+        type: 'winner',
+        data: { raffleId: id, winner },
+      },
+    });
+
+    // Emitir por socket
+    try {
+      io.emit('raffle:winner', { raffleId: id, winner });
+      io.emit('raffle:finished', { raffleId: id });
+      if (winnerEntry) {
+        io.to(`user:${winnerEntry.userId}`).emit('user:won', {
+          number: raffle.winnerNumber,
+          prize: raffle.prize,
+          prizeImage: raffle.prizeImage,
+          raffleTitle: raffle.title,
+          raffleId: id,
+          date: new Date().toISOString(),
+        });
+      }
+      uniqueLoserIds.forEach(userId => {
+        io.to(`user:${userId}`).emit('user:lost', {
+          raffleTitle: raffle.title,
+          prize: raffle.prize,
+          raffleId: id,
+        });
+      });
+    } catch (e) { console.warn('socket winner:', e.message); }
+
+    // Notificaciones persistentes
+    if (winnerEntry) {
+      await prisma.notification.create({
+        data: {
+          userId: winnerEntry.userId,
+          type: 'WINNER',
+          title: '🏆 ¡Ganaste el sorteo!',
+          message: `Tu número #${raffle.winnerNumber} ganó "${raffle.title}". Premio: ${raffle.prize}`,
+          data: {
+            number: raffle.winnerNumber,
+            prize: raffle.prize,
+            prizeImage: raffle.prizeImage,
+            raffleTitle: raffle.title,
+            raffleId: id,
+            date: new Date().toISOString(),
+          },
+          read: false,
+        },
+      });
+    }
+
+    if (uniqueLoserIds.length > 0) {
+      await prisma.notification.createMany({
+        data: uniqueLoserIds.map(userId => ({
+          userId,
+          type: 'RAFFLE_RESULT',
+          title: '🎰 Resultado del sorteo',
+          message: `El sorteo "${raffle.title}" ya tiene ganador. ¡Suerte la próxima!`,
+          data: {
+            raffleTitle: raffle.title,
+            prize: raffle.prize,
+            raffleId: id,
+          },
+          read: false,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    res.json({ message: '¡Ganador confirmado!', winner });
+  } catch (error) { next(error); }
+};
+
+// Mantener performDraw como alias para compatibilidad
+export const performDraw = startDraw;
