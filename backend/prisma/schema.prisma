@@ -192,3 +192,11 @@ model LiveState {
 
   @@map("live_state")
 }
+model RaffleBroadcast {
+  id        String   @id @default(uuid())
+  type      String   // 'starting-soon' | 'spinning' | 'winner'
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@map("raffle_broadcasts")
+}
