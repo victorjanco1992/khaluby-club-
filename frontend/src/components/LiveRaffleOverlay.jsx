@@ -385,13 +385,11 @@ export default function LiveRaffleOverlay() {
     if (!liveStatus) return;
 
     if (liveStatus.phase === 'drawing') {
-      const r = liveStatus;
-      if (processedRef.current.drawing === r.raffleId) return;
-      processedRef.current.drawing = r.raffleId;
-      processedRef.current.finished = null;
-
+      const r = liveStatus.raffle;  // ← aquí
+      if (processedRef.current.drawing === r.id) return;
+      processedRef.current.drawing = r.id;
       setRaffleInfo({
-        raffleTitle: r.raffleTitle,
+        raffleTitle: r.title,
         prize: r.prize,
         prizeImage: r.prizeImage,
       });
@@ -399,7 +397,7 @@ export default function LiveRaffleOverlay() {
       setLivePhase('spinning');
       setShowLive(true);
 
-      const nums = [1, 2, 3, 4, 5]; // fallback si no hay números
+      const nums = r.numbers?.length > 0 ? r.numbers : [1, 2, 3];
       spinNumsRef.current = nums;
       clearInterval(spinIntervalRef.current);
       spinIntervalRef.current = setInterval(() => {
@@ -408,18 +406,18 @@ export default function LiveRaffleOverlay() {
     }
 
     if (liveStatus.phase === 'finished') {
-      const r = liveStatus;
-      if (processedRef.current.finished === r.raffleId) return;
-
-      resolveWinner({
-        number: r.winnerNumber,
-        name: r.winnerName,
-        prize: r.prize,
-        prizeImage: r.prizeImage,
-        raffleTitle: r.raffleTitle,
-      }, r.raffleId);
-    }
-  }, [liveStatus?.phase, liveStatus?.raffleId]);
+    const r = liveStatus.raffle;  // ← aquí está la diferencia
+    if (processedRef.current.finished === r.id) return;
+  
+    resolveWinner({
+      number: r.winnerNumber,
+      name: r.winnerName,
+      prize: r.prize,
+      prizeImage: r.prizeImage,
+      raffleTitle: r.title,
+    }, r.id);
+  }
+  }, [liveStatus?.phase, liveStatus?.raffle?.id]);
 
   // ===== POLLING broadcast =====
   const { data: broadcastData } = useQuery({
