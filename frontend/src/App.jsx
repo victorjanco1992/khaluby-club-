@@ -20,6 +20,7 @@ import AdminPromotions from './pages/admin/AdminPromotions.jsx';
 import AdminConfig from './pages/admin/AdminConfig.jsx';
 import NotificationOverlay from './components/NotificationOverlay.jsx';
 import LiveRaffleOverlay from './components/LiveRaffleOverlay.jsx';
+import InstallPWA from './components/InstallPWA.jsx';
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { isAuthenticated, isAdmin } = useAuthStore();
@@ -33,12 +34,9 @@ export default function App() {
 
   return (
     <>
-      {/* Notificaciones persistentes (ganador al loguearse) */}
+      <InstallPWA />
       {isAuthenticated() && !isAdmin() && <NotificationOverlay />}
-
-      {/* Sorteo en vivo — aparece en cualquier pantalla del cliente */}
       {isAuthenticated() && !isAdmin() && <LiveRaffleOverlay />}
-
       <Routes>
         <Route
           path="/"
@@ -53,7 +51,6 @@ export default function App() {
           element={isAuthenticated() ? <Navigate to="/dashboard" /> : <RegisterPage />}
         />
         <Route path="/sorteo" element={<SorteoPublico />} />
-
         <Route path="/" element={<ProtectedRoute><ClientLayout /></ProtectedRoute>}>
           <Route path="dashboard" element={<ClientDashboard />} />
           <Route path="sorteos" element={<ClientRaffles />} />
@@ -61,7 +58,6 @@ export default function App() {
           <Route path="promociones" element={<ClientPromotions />} />
           <Route path="perfil" element={<ClientProfile />} />
         </Route>
-
         <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout /></ProtectedRoute>}>
           <Route index element={<AdminDashboard />} />
           <Route path="clientes" element={<AdminClients />} />
