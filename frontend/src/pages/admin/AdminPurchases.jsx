@@ -25,11 +25,13 @@ const PAYMENT_METHODS = [
 ];
 
 const MULTIPLIERS = [
-  { value: 1,   label: 'x1',   sublabel: 'Normal',       color: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.10)', text: 'rgba(240,244,236,0.55)' },
-  { value: 1.5, label: 'x1.5', sublabel: '+50%',         color: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.28)', text: '#fde68a' },
-  { value: 2,   label: 'x2',   sublabel: 'Doble 🔥',     color: 'rgba(92,181,22,0.12)',   border: 'rgba(92,181,22,0.28)',  text: '#9de360' },
-  { value: 3,   label: 'x3',   sublabel: 'Triple ⭐',    color: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.28)', text: '#c4b5fd' },
+  { value: 1,   label: 'x1',   sublabel: 'Normal',    color: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.10)', text: 'rgba(240,244,236,0.55)' },
+  { value: 1.5, label: 'x1.5', sublabel: '+50%',      color: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.28)', text: '#fde68a' },
+  { value: 2,   label: 'x2',   sublabel: 'Doble 🔥',  color: 'rgba(92,181,22,0.12)',   border: 'rgba(92,181,22,0.28)',  text: '#9de360' },
+  { value: 3,   label: 'x3',   sublabel: 'Triple ⭐', color: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.28)', text: '#c4b5fd' },
 ];
+
+const PAGE_SIZE = 10;
 
 function UserCard({ user, onClear }) {
   return (
@@ -153,6 +155,7 @@ export default function AdminPurchases() {
   const [paymentMethod, setPaymentMethod] = useState('TRANSFER');
   const [multiplier, setMultiplier] = useState(1);
   const [notes, setNotes] = useState('');
+  const [page, setPage] = useState(1);
   const amountRef = useRef();
 
   const { data: configData } = useQuery({
@@ -160,9 +163,10 @@ export default function AdminPurchases() {
     queryFn: () => api.get('/api/admin/config').then(r => r.data.config),
   });
 
-  const { data: purchasesData, refetch } = useQuery({
-    queryKey: ['admin-purchases'],
-    queryFn: () => api.get('/api/purchases?limit=20').then(r => r.data),
+  const { data: purchasesData, refetch, isFetching } = useQuery({
+    queryKey: ['admin-purchases', page],
+    queryFn: () => api.get(`/api/purchases?limit=${PAGE_SIZE}&page=${page}`).then(r => r.data),
+    keepPreviousData: true,
   });
 
   const findByQR = useMutation({
@@ -201,13 +205,16 @@ export default function AdminPurchases() {
       setNotes('');
       setPaymentMethod('TRANSFER');
       setMultiplier(1);
-      refetch();
+      setPage(1); // volver a página 1 para ver la compra nueva
+      queryClient.invalidateQueries({ queryKey: ['admin-purchases'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   });
 
   const purchases = purchasesData?.purchases || [];
+  const total = purchasesData?.total || 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <>
@@ -228,7 +235,7 @@ export default function AdminPurchases() {
           </p>
         </div>
 
-        {/* ===== PASO 1: CLIENTE ===== */}
+        {/* PASO 1 */}
         <div className="card p-4 space-y-3">
           <h3 className="font-semibold text-white text-sm uppercase tracking-wider"
             style={{ color: 'rgba(240,244,236,0.60)' }}>
@@ -283,14 +290,13 @@ export default function AdminPurchases() {
           )}
         </div>
 
-        {/* ===== PASO 2: DETALLE ===== */}
+        {/* PASO 2 */}
         <div className={`card p-4 space-y-5 ${!foundUser ? 'opacity-40 pointer-events-none' : ''}`}>
           <h3 className="font-semibold text-sm uppercase tracking-wider"
             style={{ color: 'rgba(240,244,236,0.60)' }}>
             2. Detalle de la compra
           </h3>
 
-          {/* Medio de pago */}
           <div>
             <label className="label">Medio de pago</label>
             <div className="grid grid-cols-2 gap-3">
@@ -323,7 +329,6 @@ export default function AdminPurchases() {
             </div>
           </div>
 
-          {/* Monto */}
           <div>
             <label className="label">Monto total ($)</label>
             <input
@@ -338,7 +343,6 @@ export default function AdminPurchases() {
             />
           </div>
 
-          {/* Multiplicador */}
           <div>
             <label className="label">Multiplicador de puntos</label>
             <div className="grid grid-cols-4 gap-2">
@@ -369,7 +373,6 @@ export default function AdminPurchases() {
             </div>
           </div>
 
-          {/* Preview */}
           <PreviewBox
             amount={amount}
             paymentMethod={paymentMethod}
@@ -377,7 +380,6 @@ export default function AdminPurchases() {
             config={configData}
           />
 
-          {/* Notas */}
           <div>
             <label className="label">Notas (opcional)</label>
             <input
@@ -389,7 +391,6 @@ export default function AdminPurchases() {
             />
           </div>
 
-          {/* Botón */}
           <button
             onClick={() => registerPurchase.mutate({
               userId: foundUser?.id,
@@ -408,13 +409,32 @@ export default function AdminPurchases() {
           </button>
         </div>
 
-        {/* ===== COMPRAS RECIENTES ===== */}
-        {purchases.length > 0 && (
+        {/* ===== COMPRAS RECIENTES CON PAGINACIÓN ===== */}
+        {(purchases.length > 0 || total > 0) && (
           <div>
-            <h3 className="font-semibold text-white mb-3">Compras recientes</h3>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-semibold text-white">Compras recientes</h3>
+                <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.40)' }}>
+                  {total.toLocaleString()} compras en total
+                </p>
+              </div>
+              {isFetching && (
+                <div className="w-4 h-4 rounded-full border-2 animate-spin"
+                  style={{ borderColor: 'rgba(92,181,22,0.20)', borderTopColor: '#5cb516' }} />
+              )}
+            </div>
+
+            {/* Lista */}
             <div className="card divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
               {purchases.map(p => (
-                <div key={p.id} className="p-4">
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="p-4"
+                >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-white text-sm truncate">{p.user?.name}</p>
@@ -432,11 +452,10 @@ export default function AdminPurchases() {
                         : { background: 'rgba(245,158,11,0.12)', color: '#fde68a', border: '1px solid rgba(245,158,11,0.25)' }
                       }
                     >
-                      {p.paymentMethod === 'CASH' ? '💵' : '📲'}{' '}
-                      {p.paymentMethod === 'CASH' ? 'Efectivo' : 'Transfer'}
+                      {p.paymentMethod === 'CASH' ? '💵 Efectivo' : '📲 Transfer'}
                     </span>
                   </div>
-                  <div className="flex gap-4 text-sm">
+                  <div className="flex gap-4 text-sm flex-wrap">
                     <span className="font-mono font-bold" style={{ color: '#6ee7b7' }}>
                       ${p.amount.toLocaleString()}
                     </span>
@@ -448,10 +467,107 @@ export default function AdminPurchases() {
                         +{p.numbers.length} núm.
                       </span>
                     )}
+                    {p.notes && (
+                      <span className="truncate" style={{ color: 'rgba(240,244,236,0.35)' }}>
+                        📝 {p.notes}
+                      </span>
+                    )}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
+
+            {/* Paginación */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 gap-3">
+                {/* Info */}
+                <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>
+                  Página {page} de {totalPages}
+                </p>
+
+                {/* Controles */}
+                <div className="flex items-center gap-2">
+                  {/* Anterior */}
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1 || isFetching}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center transition-all disabled:opacity-30"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(240,244,236,0.70)' }}
+                  >
+                    ←
+                  </button>
+
+                  {/* Números de página */}
+                  <div className="flex gap-1">
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      // Calcular qué páginas mostrar centradas en la actual
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (page <= 3) {
+                        pageNum = i + 1;
+                      } else if (page >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = page - 2 + i;
+                      }
+
+                      const isActive = pageNum === page;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          disabled={isFetching}
+                          className="w-9 h-9 rounded-xl text-sm font-medium transition-all"
+                          style={isActive ? {
+                            background: 'rgba(92,181,22,0.25)',
+                            color: '#9de360',
+                            border: '1px solid rgba(92,181,22,0.40)',
+                          } : {
+                            background: 'rgba(255,255,255,0.04)',
+                            color: 'rgba(240,244,236,0.55)',
+                          }}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Siguiente */}
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages || isFetching}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center transition-all disabled:opacity-30"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(240,244,236,0.70)' }}
+                  >
+                    →
+                  </button>
+                </div>
+
+                {/* Ir a página */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs" style={{ color: 'rgba(240,244,236,0.35)' }}>Ir a</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={totalPages}
+                    className="input text-center text-sm font-mono"
+                    style={{ width: '52px', padding: '6px 8px' }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = parseInt(e.target.value);
+                        if (val >= 1 && val <= totalPages) {
+                          setPage(val);
+                          e.target.value = '';
+                        }
+                      }
+                    }}
+                    placeholder={page}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
