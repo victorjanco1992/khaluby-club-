@@ -1,0 +1,46 @@
+{
+  "name": "Despensa Khaluby",
+  "short_name": "Khaluby",
+  "description": "Programa de fidelización y sorteos de Despensa Khaluby",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c1409",
+  "theme_color": "#5cb516",
+  "orientation": "portrait",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "categories": ["shopping", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "Mis puntos",
+      "url": "/dashboard",
+      "description": "Ver mis puntos y sorteos"
+    },
+    {
+      "name": "Sorteo en vivo",
+      "url": "/sorteo",
+      "description": "Ver sorteo en vivo"
+    }
+  ]
+}
