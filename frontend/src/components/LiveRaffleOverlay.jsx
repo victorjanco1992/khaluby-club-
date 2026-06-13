@@ -302,6 +302,41 @@ function LiveScreen({ phase, currentNum, winner, raffleInfo, onClose }) {
   );
 }
 
+// ─── Desaceleración hacia el número ganador ───────────────────────────────────
+// Llama a setCurrentNum con números random por 2.5s, luego va intercalando
+// el número ganador cada vez más seguido hasta que queda fijo.
+function runSlowdown(winnerNumber, nums, setCurrentNum, spinIntervalRef, onDone) {
+  clearInterval(spinIntervalRef.current);
+
+  const TOTAL_MS = 2500;       // duración de la desaceleración
+  const START_INTERVAL = 80;   // velocidad inicial (ms entre cambios)
+  const END_INTERVAL = 400;    // velocidad final antes de parar
+  const startTime = Date.now();
+
+  const tick = () => {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / TOTAL_MS, 1); // 0 → 1
+
+    // Probabilidad de mostrar el ganador crece con el progreso
+    const showWinner = Math.random() < progress * progress;
+    setCurrentNum(showWinner ? winnerNumber : nums[Math.floor(Math.random() * nums.length)]);
+
+    if (progress >= 1) {
+      // Terminó — fijar número ganador y avisar
+      setCurrentNum(winnerNumber);
+      onDone();
+      return;
+    }
+
+    // Intervalo crece (se desacelera) con el tiempo
+    const interval = START_INTERVAL + (END_INTERVAL - START_INTERVAL) * progress;
+    spinIntervalRef.current = setTimeout(tick, interval);
+  };
+
+  spinIntervalRef.current = setTimeout(tick, START_INTERVAL);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function LiveRaffleOverlay() {
   const { isAuthenticated, isAdmin, user } = useAuthStore();
   const navigate = useNavigate();
@@ -315,8 +350,27 @@ export default function LiveRaffleOverlay() {
   const [raffleInfo, setRaffleInfo] = useState(null);
 
   const spinIntervalRef = useRef(null);
+  const spinNumsRef = useRef([1, 2, 3]); // números disponibles para el spinner
   const processedRef = useRef({ drawing: null, finished: null });
   const processedBroadcastRef = useRef(null);
+
+  // Función centralizada para resolver el ganador con desaceleración
+  const resolveWinner = useCallback((w, raffleId) => {
+    if (processedRef.current.finished === raffleId) return;
+    processedRef.current.finished = raffleId;
+
+    const nums = spinNumsRef.current;
+
+    runSlowdown(w.number, nums, setCurrentNum, spinIntervalRef, () => {
+      // Una vez que el número queda fijo, mostrar pantalla de ganador
+      setWinner(w);
+      setLivePhase('winner');
+      setShowLive(true);
+      launchFireworks();
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['raffles-client'] });
+    });
+  }, [queryClient]);
 
   // ===== POLLING live-status =====
   const { data: liveStatus } = useQuery({
@@ -331,13 +385,13 @@ export default function LiveRaffleOverlay() {
     if (!liveStatus) return;
 
     if (liveStatus.phase === 'drawing') {
-      const r = liveStatus.raffle;
-      if (processedRef.current.drawing === r.id) return;
-      processedRef.current.drawing = r.id;
+      const r = liveStatus;
+      if (processedRef.current.drawing === r.raffleId) return;
+      processedRef.current.drawing = r.raffleId;
       processedRef.current.finished = null;
 
       setRaffleInfo({
-        raffleTitle: r.title,
+        raffleTitle: r.raffleTitle,
         prize: r.prize,
         prizeImage: r.prizeImage,
       });
@@ -345,7 +399,8 @@ export default function LiveRaffleOverlay() {
       setLivePhase('spinning');
       setShowLive(true);
 
-      const nums = r.numbers?.length > 0 ? r.numbers : [1, 2, 3];
+      const nums = [1, 2, 3, 4, 5]; // fallback si no hay números
+      spinNumsRef.current = nums;
       clearInterval(spinIntervalRef.current);
       spinIntervalRef.current = setInterval(() => {
         setCurrentNum(nums[Math.floor(Math.random() * nums.length)]);
@@ -353,29 +408,20 @@ export default function LiveRaffleOverlay() {
     }
 
     if (liveStatus.phase === 'finished') {
-      const r = liveStatus.raffle;
-      if (processedRef.current.finished === r.id) return;
-      processedRef.current.finished = r.id;
+      const r = liveStatus;
+      if (processedRef.current.finished === r.raffleId) return;
 
-      clearInterval(spinIntervalRef.current);
-
-      setWinner({
+      resolveWinner({
         number: r.winnerNumber,
         name: r.winnerName,
         prize: r.prize,
         prizeImage: r.prizeImage,
-        raffleTitle: r.title,
-      });
-      setLivePhase('winner');
-      setShowLive(true);
-      launchFireworks();
-
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['raffles-client'] });
+        raffleTitle: r.raffleTitle,
+      }, r.raffleId);
     }
-  }, [liveStatus?.phase, liveStatus?.raffle?.id]);
+  }, [liveStatus?.phase, liveStatus?.raffleId]);
 
-  // ===== POLLING broadcast (aviso previo + spinning) =====
+  // ===== POLLING broadcast =====
   const { data: broadcastData } = useQuery({
     queryKey: ['live-broadcast'],
     queryFn: () => api.get('/api/raffles/broadcast').then(r => r.data).catch(() => ({ broadcast: null })),
@@ -415,15 +461,15 @@ export default function LiveRaffleOverlay() {
       setShowLive(true);
 
       const nums = data.numbers?.length > 0 ? data.numbers : [1, 2, 3];
+      spinNumsRef.current = nums;
       clearInterval(spinIntervalRef.current);
       spinIntervalRef.current = setInterval(() => {
         setCurrentNum(nums[Math.floor(Math.random() * nums.length)]);
       }, 80);
-      setTimeout(() => clearInterval(spinIntervalRef.current), data.spinDurationMs || 6000);
     }
   }, [broadcastData?.broadcast?.id, broadcastData?.broadcast?.type]);
 
-  // ===== SOCKET — complementa el polling cuando funciona =====
+  // ===== SOCKET =====
   useEffect(() => {
     if (!isAuthenticated() || isAdmin()) return;
     const socket = getSocket(user?.id);
@@ -448,25 +494,15 @@ export default function LiveRaffleOverlay() {
       setShowLive(true);
 
       const nums = data.numbers?.length > 0 ? data.numbers : [1, 2, 3];
+      spinNumsRef.current = nums;
       clearInterval(spinIntervalRef.current);
       spinIntervalRef.current = setInterval(() => {
         setCurrentNum(nums[Math.floor(Math.random() * nums.length)]);
       }, 80);
-      setTimeout(() => clearInterval(spinIntervalRef.current), data.spinDurationMs || 6000);
     });
 
     socket.on('raffle:winner', ({ winner: w, raffleId }) => {
-      if (processedRef.current.finished === raffleId) return;
-      processedRef.current.finished = raffleId;
-
-      clearInterval(spinIntervalRef.current);
-      setCurrentNum(w.number);
-      setWinner(w);
-      setLivePhase('winner');
-      setShowLive(true);
-      launchFireworks();
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['raffles-client'] });
+      resolveWinner(w, raffleId);
     });
 
     socket.on('raffle:finished', () => {
@@ -487,7 +523,6 @@ export default function LiveRaffleOverlay() {
 
   return (
     <>
-      {/* Banner aviso previo */}
       <AnimatePresence>
         {startingSoon && !showLive && (
           <StartingSoonBanner
@@ -502,7 +537,6 @@ export default function LiveRaffleOverlay() {
         )}
       </AnimatePresence>
 
-      {/* Pantalla en vivo */}
       <AnimatePresence>
         {showLive && livePhase && (
           <LiveScreen
