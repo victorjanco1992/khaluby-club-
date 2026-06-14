@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { io } from '../index.js';
 import { emitRaffleEvent } from '../lib/socket.js';
+import { sendPushToAll, sendPushToUser } from '../lib/pushNotifications.js';
 
 const raffleSchema = z.object({
   title: z.string().min(3),
@@ -173,6 +174,15 @@ export const activateRaffle = async (req, res, next) => {
     await prisma.raffle.updateMany({ where: { status: 'ACTIVE' }, data: { status: 'PENDING' } });
     const raffle = await prisma.raffle.update({ where: { id }, data: { status: 'ACTIVE' } });
     io.emit('raffle:activated', { raffle });
+
+    // Push: avisar a todos los usuarios que hay un nuevo sorteo activo
+    await sendPushToAll({
+      title: '🎰 ¡Nuevo sorteo activo!',
+      body: `"${raffle.title}" está activo. ¡Comprá y participá!`,
+      icon: '/icon-192.png',
+      data: { url: '/sorteos' },
+    });
+
     res.json({ raffle, message: 'Sorteo activado' });
   } catch (error) { next(error); }
 };
@@ -335,6 +345,14 @@ export const confirmWinner = async (req, res, next) => {
           read: false,
         },
       });
+
+      // Push al ganador
+      await sendPushToUser(winnerEntry.userId, {
+        title: '🏆 ¡GANASTE EL SORTEO!',
+        body: `Tu número #${raffle.winnerNumber} ganó "${raffle.title}". Premio: ${raffle.prize} 🎉`,
+        icon: '/icon-192.png',
+        data: { url: '/sorteos' },
+      });
     }
 
     if (uniqueLoserIds.length > 0) {
@@ -353,6 +371,16 @@ export const confirmWinner = async (req, res, next) => {
         })),
         skipDuplicates: true,
       });
+
+      // Push a los que perdieron
+      for (const userId of uniqueLoserIds) {
+        await sendPushToUser(userId, {
+          title: '🎰 El sorteo terminó',
+          body: `"${raffle.title}" ya tiene ganador. ¡Seguí comprando para el próximo!`,
+          icon: '/icon-192.png',
+          data: { url: '/sorteos' },
+        });
+      }
     }
 
     res.json({ message: '¡Ganador confirmado!', winner });
@@ -616,6 +644,14 @@ export const notifyRaffleStarting = async (req, res, next) => {
       io.emit('raffle:starting-soon', broadcastData);
     } catch (e) { console.warn('socket starting-soon:', e.message); }
 
+    // Push: avisar que el sorteo está por comenzar
+    await sendPushToAll({
+      title: '⏳ ¡El sorteo está por empezar!',
+      body: `"${raffle.title}" arranca en ${secondsUntilStart}s. ¡No te lo pierdas!`,
+      icon: '/icon-192.png',
+      data: { url: '/sorteo' },
+    });
+
     res.json({ message: `Aviso guardado — sorteo en ${secondsUntilStart}s` });
   } catch (error) { next(error); }
 };
@@ -639,6 +675,14 @@ export const notifyRaffleSpinning = async (req, res, next) => {
       spinDurationMs,
     });
 
+    // Push: avisar que el sorteo está girando en vivo
+    await sendPushToAll({
+      title: '🔴 ¡Sorteo EN VIVO ahora!',
+      body: 'El sorteo está girando. ¡Entrá ya a ver si ganaste!',
+      icon: '/icon-192.png',
+      data: { url: '/sorteo' },
+    });
+
     res.json({ message: 'Spinning notificado' });
   } catch (error) { next(error); }
 };
@@ -656,5 +700,3 @@ export const getBroadcast = async (req, res, next) => {
     res.json({ broadcast });
   } catch (error) { next(error); }
 };
-
-
