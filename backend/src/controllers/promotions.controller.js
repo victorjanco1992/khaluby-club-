@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { sendPushToAll } from '../lib/pushNotifications.js';
 
 const promotionSchema = z.object({
   title: z.string().min(2),
@@ -44,6 +45,17 @@ export const createPromotion = async (req, res, next) => {
         validTo:     data.validTo   ? new Date(data.validTo)   : null,
       },
     });
+
+    // Push: avisar a todos si la promo es visible
+    if (promotion.isVisible) {
+      await sendPushToAll({
+        title: '🏷️ ¡Nueva oferta disponible!',
+        body: promotion.title,
+        icon: '/icon-192.png',
+        data: { url: '/promociones' },
+      });
+    }
+
     res.status(201).json({ promotion, message: 'Promoción creada' });
   } catch (error) { next(error); }
 };
