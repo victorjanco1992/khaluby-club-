@@ -175,12 +175,6 @@ export default function ClientDashboard() {
             className="flex gap-4 mt-4 pt-4"
             style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
           >
-            <div>
-              <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>Gastado</p>
-              <p className="font-mono font-bold text-sm text-white">
-                ${(user?.totalSpent || 0).toLocaleString()}
-              </p>
-            </div>
             {activeNumbers.length > 0 && (
               <div>
                 <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>Números activos</p>
