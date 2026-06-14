@@ -31,10 +31,11 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  purchases      Purchase[]
-  raffleEntries  RaffleEntry[]
-  redemptions    Redemption[]
-  notifications  Notification[]
+  purchases         Purchase[]
+  raffleEntries     RaffleEntry[]
+  redemptions       Redemption[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -55,7 +56,7 @@ model Notification {
 }
 
 model Purchase {
-  id            String      @id @default(uuid())
+  id            String        @id @default(uuid())
   userId        String
   amount        Float
   points        Int
@@ -63,7 +64,7 @@ model Purchase {
   paymentMethod PaymentMethod @default(TRANSFER)
   notes         String?
   createdBy     String
-  createdAt     DateTime    @default(now())
+  createdAt     DateTime      @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
@@ -149,6 +150,42 @@ model Promotion {
   @@map("promotions")
 }
 
+model LiveState {
+  id                String   @id @default("singleton")
+  phase             String   @default("idle")
+  raffleId          String?
+  raffleTitle       String?
+  prize             String?
+  prizeImage        String?
+  winnerNumber      Int?
+  winnerName        String?
+  secondsUntilStart Int?
+  updatedAt         DateTime @updatedAt
+
+  @@map("live_state")
+}
+
+model RaffleBroadcast {
+  id        String   @id @default(uuid())
+  type      String
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@map("raffle_broadcasts")
+}
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  subscription String
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subscription])
+  @@map("push_subscriptions")
+}
+
 enum Role {
   CLIENT
   ADMIN
@@ -177,36 +214,4 @@ enum NotificationType {
 enum PaymentMethod {
   CASH
   TRANSFER
-}
-model LiveState {
-  id        String   @id @default("singleton")
-  phase     String   @default("idle") // idle | starting_soon | drawing | finished
-  raffleId  String?
-  raffleTitle String?
-  prize     String?
-  prizeImage String?
-  winnerNumber Int?
-  winnerName String?
-  secondsUntilStart Int?
-  updatedAt DateTime @updatedAt
-
-  @@map("live_state")
-}
-model RaffleBroadcast {
-  id        String   @id @default(uuid())
-  type      String   // 'starting-soon' | 'spinning' | 'winner'
-  data      Json
-  createdAt DateTime @default(now())
-
-  @@map("raffle_broadcasts")
-}
-
-model PushSubscription {
-  id           String   @id @default(cuid())
-  userId       String
-  subscription String   // JSON string del objeto PushSubscription
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, subscription])
 }
