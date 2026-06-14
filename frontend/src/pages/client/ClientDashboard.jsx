@@ -58,9 +58,10 @@ export default function ClientDashboard() {
               <p className="text-sm" style={{ color: 'rgba(240,244,236,0.55)' }}>Tus puntos</p>
               <p className="font-mono font-bold text-5xl text-white mt-1">{points.toLocaleString()}</p>
             </div>
+            
             <div className="text-right">
               <span className="text-3xl">{level.icon}</span>
-              <p className="text-sm font-bold mt-1" style={{ color: level.text }}>{level.name}</p>
+              <p className={`text-sm font-bold bg-gradient-to-r ${level.color} bg-clip-text text-transparent mt-1`}>{level.name}</p>
             </div>
           </div>
           {nextLevel && (
