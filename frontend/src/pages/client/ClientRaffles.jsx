@@ -17,15 +17,13 @@ export default function ClientRaffles() {
   const [liveWinner, setLiveWinner] = useState(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [currentNum, setCurrentNum] = useState(null);
-  const [liveRaffleTitle, setLiveRaffleTitle] = useState('');
 
   const { data, refetch } = useQuery({
     queryKey: ['raffles-client'],
     queryFn: () => api.get('/api/raffles').then(r => r.data),
-    refetchInterval: 8000, // refrescar cada 8s para ver resultados
+    refetchInterval: 8000,
   });
 
-  // Obtener detalles de sorteos finalizados para mostrar ganador
   const { data: raffleDetails } = useQuery({
     queryKey: ['raffles-details'],
     queryFn: async () => {
@@ -57,7 +55,7 @@ export default function ClientRaffles() {
       setTimeout(() => { clearInterval(interval); setIsSpinning(false); }, data.spinDurationMs || 6000);
     });
 
-    socket.on('raffle:winner', ({ winner, raffleId }) => {
+    socket.on('raffle:winner', ({ winner }) => {
       setIsSpinning(false);
       setCurrentNum(winner.number);
       setLiveWinner(winner);
@@ -71,7 +69,6 @@ export default function ClientRaffles() {
     socket.on('raffle:activated', () => refetch());
     socket.on('raffle:finished', () => {
       refetch();
-      // También refrescar detalles
       setTimeout(() => refetch(), 1000);
     });
 
@@ -86,7 +83,6 @@ export default function ClientRaffles() {
   const raffles = data?.raffles || [];
   const myNumbers = myNumbersData || [];
 
-  // Obtener ganador de un sorteo finalizado
   const getWinnerEntry = (raffle) => {
     if (!raffle.winnerNumber || !raffleDetails) return null;
     const detail = raffleDetails.find(d => d.id === raffle.id);
@@ -94,7 +90,6 @@ export default function ClientRaffles() {
     return detail.entries?.find(e => e.number === raffle.winnerNumber);
   };
 
-  // Saber si el usuario ganó ese sorteo
   const userWon = (raffle) => {
     const myNums = myNumbers.filter(e => e.raffle?.id === raffle.id);
     return myNums.some(e => e.number === raffle.winnerNumber);
@@ -209,7 +204,7 @@ export default function ClientRaffles() {
                 className="card overflow-hidden"
                 style={iWon ? { borderColor: 'rgba(92,181,22,0.40)', boxShadow: '0 0 20px rgba(92,181,22,0.10)' } : {}}
               >
-                {/* Imagen */}
+                {/* Imagen — solo la imagen, sin texto encima */}
                 {raffle.prizeImage && (
                   <div className="relative">
                     <img
@@ -218,39 +213,34 @@ export default function ClientRaffles() {
                       className="w-full h-44 object-cover"
                       onError={e => { e.target.parentElement.style.display = 'none'; }}
                     />
-                    <div className="absolute inset-0"
-                      style={{ background: 'linear-gradient(to top, rgba(8,13,5,0.88) 0%, transparent 55%)' }} />
+                    {/* Badge de estado arriba a la derecha */}
                     <div className="absolute top-3 right-3">
                       <span className="badge font-semibold" style={status.style}>{status.label}</span>
-                    </div>
-                    <div className="absolute bottom-3 left-4">
-                      <h3 className="font-display font-bold text-xl text-white drop-shadow">{raffle.title}</h3>
-                      {raffle.description && (
-                        <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.65)' }}>
-                          {raffle.description}
-                        </p>
-                      )}
                     </div>
                   </div>
                 )}
 
                 <div className="p-4 space-y-3">
-                  {/* Título si no hay imagen */}
-                  {!raffle.prizeImage && (
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold text-white">{raffle.title}</h3>
-                        {raffle.description && (
-                          <p className="text-sm mt-0.5" style={{ color: 'rgba(240,244,236,0.55)' }}>
-                            {raffle.description}
-                          </p>
-                        )}
-                      </div>
-                      <span className="badge font-semibold flex-shrink-0 ml-2" style={status.style}>
+                  {/* Título + descripción + estado (siempre visible aquí) */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-display font-bold text-lg text-white leading-tight">
+                        {raffle.title}
+                      </h3>
+                      {raffle.description && (
+                        <p className="text-sm mt-1 leading-relaxed"
+                          style={{ color: 'rgba(240,244,236,0.65)' }}>
+                          {raffle.description}
+                        </p>
+                      )}
+                    </div>
+                    {/* Badge solo si no hay imagen (si hay imagen ya está arriba) */}
+                    {!raffle.prizeImage && (
+                      <span className="badge font-semibold flex-shrink-0" style={status.style}>
                         {status.label}
                       </span>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Premio */}
                   <div className="rounded-xl p-3"
@@ -259,7 +249,7 @@ export default function ClientRaffles() {
                     <p className="font-semibold" style={{ color: '#fde68a' }}>🏆 {raffle.prize}</p>
                   </div>
 
-                  {/* ===== GANADOR — solo si está finalizado ===== */}
+                  {/* Ganador — solo si está finalizado */}
                   {raffle.status === 'FINISHED' && raffle.winnerNumber && (
                     <div
                       className="rounded-xl p-3"
@@ -269,7 +259,6 @@ export default function ClientRaffles() {
                       }}
                     >
                       {iWon ? (
-                        // El usuario ganó
                         <div className="text-center">
                           <p className="text-lg mb-1">🎉</p>
                           <p className="font-bold text-sm" style={{ color: '#9de360' }}>
@@ -280,17 +269,13 @@ export default function ClientRaffles() {
                           </p>
                         </div>
                       ) : (
-                        // El usuario no ganó — mostrar quién ganó
                         <div>
                           <p className="text-xs mb-2" style={{ color: 'rgba(240,244,236,0.45)' }}>
                             Número ganador
                           </p>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span
-                                className="font-mono font-black text-xl"
-                                style={{ color: '#fde68a' }}
-                              >
+                              <span className="font-mono font-black text-xl" style={{ color: '#fde68a' }}>
                                 #{raffle.winnerNumber}
                               </span>
                               {winnerEntry?.user?.name && (
