@@ -7,10 +7,10 @@ import { getSocket } from '../../lib/socket.js';
 import toast from 'react-hot-toast';
 
 const LEVELS = [
-  { name: 'Bronce',   min: 0,     max: 999,     color: 'from-amber-700 to-amber-500',   icon: '🥉' },
-  { name: 'Plata',    min: 1000,  max: 4999,    color: 'from-slate-400 to-slate-200',   icon: '🥈' },
-  { name: 'Oro',      min: 5000,  max: 19999,   color: 'from-yellow-500 to-amber-300',  icon: '🥇' },
-  { name: 'Diamante', min: 20000, max: Infinity, color: 'from-cyan-400 to-violet-400',  icon: '💎' },
+  { name: 'Bronce',   min: 0,     max: 99,     color: 'from-amber-700 to-amber-500',   icon: '🥉' },
+  { name: 'Plata',    min: 100,  max: 499,    color: 'from-slate-400 to-slate-200',   icon: '🥈' },
+  { name: 'Oro',      min: 500,  max: 1499,   color: 'from-yellow-500 to-amber-300',  icon: '🥇' },
+  { name: 'Diamante', min: 15000, max: Infinity, color: 'from-cyan-400 to-violet-400',  icon: '💎' },
 ];
 const getLevel = (pts) => LEVELS.find(l => pts >= l.min && pts <= l.max) || LEVELS[0];
 
