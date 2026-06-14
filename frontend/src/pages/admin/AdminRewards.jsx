@@ -120,6 +120,21 @@ export default function AdminRewards() {
     onError: (err) => toast.error(err.response?.data?.error || 'Error al procesar'),
   });
 
+  const deleteRewardMutation = useMutation({
+    mutationFn: (id) => api.delete(`/api/rewards/${id}`),
+    onSuccess: () => {
+      toast.success('Recompensa eliminada');
+      queryClient.invalidateQueries({ queryKey: ['admin-rewards'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error al eliminar'),
+  });
+
+  const handleDelete = (reward) => {
+    if (confirm(`¿Eliminar "${reward.name}"? También se eliminarán sus canjes.`)) {
+      deleteRewardMutation.mutate(reward.id);
+    }
+  };
+
   const rewards = data?.rewards || [];
   const redemptions = redemptionsData?.redemptions || [];
   const pendingRedemptions = redemptions.filter(r => r.status === 'PENDING');
@@ -134,7 +149,7 @@ export default function AdminRewards() {
         <button onClick={() => setModal('create')} className="btn-primary">+ Nueva recompensa</button>
       </div>
 
-      {/* Pending redemptions */}
+      {/* Canjes pendientes */}
       {pendingRedemptions.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-4 border border-yellow-500/30">
           <p className="text-yellow-400 font-semibold mb-3">⚠️ {pendingRedemptions.length} canje(s) pendiente(s) de aprobación</p>
@@ -167,7 +182,7 @@ export default function AdminRewards() {
         </motion.div>
       )}
 
-      {/* Rewards grid */}
+      {/* Grilla de recompensas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {rewards.map((reward, i) => (
           <motion.div
@@ -196,7 +211,21 @@ export default function AdminRewards() {
                 <p className="font-mono font-bold text-khaluby-400">{reward.pointsCost.toLocaleString()} pts</p>
                 <p className="text-white/30 text-xs">{reward.stock === -1 ? 'Ilimitado' : `${reward.stock} en stock`} · {reward._count?.redemptions || 0} canjes</p>
               </div>
-              <button onClick={() => setModal(reward)} className="btn-secondary text-xs py-1.5 px-3">Editar</button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setModal(reward)}
+                  className="btn-secondary text-xs py-1.5 px-3"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleDelete(reward)}
+                  disabled={deleteRewardMutation.isPending}
+                  className="text-xs py-1.5 px-3 rounded-lg bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 disabled:opacity-50 transition-all"
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
           </motion.div>
         ))}
