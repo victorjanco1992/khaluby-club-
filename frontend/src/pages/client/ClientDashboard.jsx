@@ -61,7 +61,7 @@ export default function ClientDashboard() {
             
             <div className="text-right">
               <span className="text-3xl">{level.icon}</span>
-              <p className={`text-sm font-bold bg-gradient-to-r ${level.color} bg-clip-text text-transparent mt-1`}>{level.name}</p>
+              <p className="text-sm font-bold mt-1" style={{ color: level.text }}>{level.name}</p>
             </div>
           </div>
           {nextLevel && (
