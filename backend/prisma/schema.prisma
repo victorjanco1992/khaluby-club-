@@ -200,3 +200,13 @@ model RaffleBroadcast {
 
   @@map("raffle_broadcasts")
 }
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  subscription String   // JSON string del objeto PushSubscription
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subscription])
+}
