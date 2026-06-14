@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getRewards, createReward, updateReward, redeemReward, getRedemptions } from '../controllers/rewards.controller.js';
+import { getRewards, createReward, updateReward, deleteReward, redeemReward, getRedemptions } from '../controllers/rewards.controller.js';
 import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 import { prisma } from '../lib/prisma.js';
 import { io } from '../index.js';
@@ -11,6 +11,7 @@ rewardsRouter.get('/', authenticate, getRewards);
 rewardsRouter.post('/:id/redeem', authenticate, redeemReward);
 rewardsRouter.post('/', authenticate, requireAdmin, createReward);
 rewardsRouter.put('/:id', authenticate, requireAdmin, updateReward);
+rewardsRouter.delete('/:id', authenticate, requireAdmin, deleteReward);
 
 // Aprobar / rechazar canje
 rewardsRouter.patch('/redemptions/:id', authenticate, requireAdmin, async (req, res, next) => {
@@ -34,16 +35,10 @@ rewardsRouter.patch('/redemptions/:id', authenticate, requireAdmin, async (req, 
 
     if (status === 'REJECTED') {
       await prisma.$transaction([
-        prisma.redemption.update({
-          where: { id },
-          data: { status: 'REJECTED' },
-        }),
+        prisma.redemption.update({ where: { id }, data: { status: 'REJECTED' } }),
         prisma.user.update({
           where: { id: existing.userId },
-          data: {
-            points: { increment: existing.points },
-            lastRedemptionAt: null,
-          },
+          data: { points: { increment: existing.points }, lastRedemptionAt: null },
         }),
         ...(existing.reward.stock >= 0 ? [
           prisma.reward.update({
@@ -53,7 +48,6 @@ rewardsRouter.patch('/redemptions/:id', authenticate, requireAdmin, async (req, 
         ] : []),
       ]);
 
-      // Notificar al cliente en tiempo real
       try {
         io.to(`user:${existing.userId}`).emit('points:updated', {
           points: existing.user.points + existing.points,
@@ -68,17 +62,10 @@ rewardsRouter.patch('/redemptions/:id', authenticate, requireAdmin, async (req, 
       });
     }
 
-    // APPROVED
-    await prisma.redemption.update({
-      where: { id },
-      data: { status: 'APPROVED' },
-    });
+    await prisma.redemption.update({ where: { id }, data: { status: 'APPROVED' } });
 
-    // Notificar al cliente en tiempo real
     try {
-      io.to(`user:${existing.userId}`).emit('points:updated', {
-        cooldownReset: false,
-      });
+      io.to(`user:${existing.userId}`).emit('points:updated', { cooldownReset: false });
     } catch {}
 
     res.json({ message: `Canje aprobado para ${existing.user.name}` });
