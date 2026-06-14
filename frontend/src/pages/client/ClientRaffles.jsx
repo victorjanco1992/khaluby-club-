@@ -7,10 +7,10 @@ import api from '../../lib/api.js';
 import { getSocket } from '../../lib/socket.js';
 
 const STATUS_MAP = {
-  PENDING:  { label: 'Próximamente', style: { background: 'rgba(245,158,11,0.35)', color: '#fde68a', border: '2px solid rgba(245,158,11,0.70)' } },
-  ACTIVE:   { label: 'Activo',       style: { background: 'rgba(92,181,22,0.35)',  color: '#9de360', border: '2px solid rgba(92,181,22,0.70)'  } },
-  DRAWING:  { label: '¡SORTEANDO!',  style: { background: 'rgba(239,68,68,0.35)', color: '#fca5a5', border: '2px solid rgba(239,68,68,0.70)'  } },
-  FINISHED: { label: 'Finalizado',   style: { background: 'rgba(255,255,255,0.12)', color: 'rgba(240,244,236,0.65)', border: '2px solid rgba(255,255,255,0.25)' } },
+  PENDING:  { label: 'Próximamente', style: { background: 'rgba(245,158,11,0.90)', color: '#000', border: '2px solid rgba(245,158,11,1)', backdropFilter: 'blur(4px)', fontWeight: 700 } },
+  ACTIVE:   { label: 'Activo',       style: { background: 'rgba(92,181,22,0.90)',  color: '#000', border: '2px solid rgba(92,181,22,1)',  backdropFilter: 'blur(4px)', fontWeight: 700 } },
+  DRAWING:  { label: '¡SORTEANDO!',  style: { background: 'rgba(239,68,68,0.90)', color: '#fff', border: '2px solid rgba(239,68,68,1)',  backdropFilter: 'blur(4px)', fontWeight: 700 } },
+  FINISHED: { label: 'Finalizado',   style: { background: 'rgba(0,0,0,0.75)',      color: 'rgba(240,244,236,0.80)', border: '2px solid rgba(255,255,255,0.30)', backdropFilter: 'blur(4px)', fontWeight: 600 } },
 };
 
 export default function ClientRaffles() {
