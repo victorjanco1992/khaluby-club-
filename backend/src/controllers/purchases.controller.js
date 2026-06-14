@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { getConfig, calculatePoints, calculateRaffleNumbers } from '../lib/config.js';
+import { sendPushToUser } from '../lib/pushNotifications.js';
 
 const createPurchaseSchema = z.object({
   userId:        z.string().uuid(),
@@ -90,6 +91,19 @@ export const createPurchase = async (req, res, next) => {
 
     const isCash = data.paymentMethod === 'CASH';
     const hasMultiplier = data.multiplier > 1;
+
+    // Push: notificar al usuario que se registró su compra
+    const activeRaffle = raffleId ? await prisma.raffle.findUnique({ where: { id: raffleId } }) : null;
+
+    await sendPushToUser(data.userId, {
+      title: '🛒 ¡Compra registrada!',
+      body: activeRaffle
+        ? `Sumaste ${pointsEarned} puntos y estás participando en "${activeRaffle.title}" 🎰`
+        : `Sumaste ${pointsEarned} puntos. ¡Seguí comprando!`,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: '/dashboard' },
+    });
 
     res.status(201).json({
       message: [
