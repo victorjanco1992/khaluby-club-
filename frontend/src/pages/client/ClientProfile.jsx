@@ -269,17 +269,6 @@ export default function ClientProfile() {
           className="card p-4"
           style={{ border: '1px solid rgba(92,181,22,0.20)' }}
         >
-          <div className="flex flex-wrap gap-1.5">
-            {activeNumbers.map(entry => (
-              <span
-                key={entry.id}
-                className="font-mono text-xs px-2.5 py-1 rounded-lg"
-                style={{ background: 'rgba(92,181,22,0.12)', color: '#9de360', border: '1px solid rgba(92,181,22,0.22)' }}
-              >
-                #{entry.number}
-              </span>
-            ))}
-          </div>
         </motion.div>
       )}
 
