@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/authStore.js';
 import { getSocket } from '../../lib/socket.js';
+import { subscribeToPush } from '../../lib/pushNotifications.js';
 import api from '../../lib/api.js';
 
 const LEVELS = [
@@ -59,6 +60,12 @@ export default function ClientDashboard() {
   useEffect(() => {
     if (!user?.id) return;
     getSocket(user.id);
+  }, [user?.id]);
+
+  // Suscribir a push notifications una vez autenticado
+  useEffect(() => {
+    if (!user?.id) return;
+    subscribeToPush();
   }, [user?.id]);
 
   const { data: raffleData } = useQuery({
