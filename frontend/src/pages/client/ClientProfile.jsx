@@ -259,18 +259,7 @@ export default function ClientProfile() {
             {activeNumbers.length === 1 ? 'Número activo' : 'Números activos'}
           </p>
         </div>
-      </div>
-
-      {/* Números del sorteo activo */}
-      {activeNumbers.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card p-4"
-          style={{ border: '1px solid rgba(92,181,22,0.20)' }}
-        >
-        </motion.div>
-      )}
+      </div>  
 
       {/* Tarjeta ganador */}
       {win && (
