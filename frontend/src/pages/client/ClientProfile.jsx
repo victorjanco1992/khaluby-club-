@@ -269,25 +269,6 @@ export default function ClientProfile() {
           className="card p-4"
           style={{ border: '1px solid rgba(92,181,22,0.20)' }}
         >
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-sm font-semibold text-white">
-                Tus números del sorteo
-              </p>
-              {activeRaffle && (
-                <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.45)' }}>
-                  {activeRaffle.title}
-                </p>
-              )}
-            </div>
-            <span
-              className="badge text-xs font-bold"
-              style={{ background: 'rgba(92,181,22,0.15)', color: '#9de360', border: '1px solid rgba(92,181,22,0.28)' }}
-            >
-              {activeNumbers.length} núm.
-            </span>
-          </div>
-
           <div className="flex flex-wrap gap-1.5">
             {activeNumbers.map(entry => (
               <span
