@@ -20,7 +20,6 @@ export const getRewards = async (req, res, next) => {
       include: { _count: { select: { redemptions: true } } },
     });
 
-    // Si es cliente, incluir info del cooldown
     let cooldownInfo = null;
     if (req.user?.role === 'CLIENT') {
       const user = await prisma.user.findUnique({
@@ -62,6 +61,16 @@ export const updateReward = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+export const deleteReward = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    // Eliminar primero los canjes asociados para no violar FK
+    await prisma.redemption.deleteMany({ where: { rewardId: id } });
+    await prisma.reward.delete({ where: { id } });
+    res.json({ message: 'Recompensa eliminada' });
+  } catch (error) { next(error); }
+};
+
 export const redeemReward = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -78,7 +87,6 @@ export const redeemReward = async (req, res, next) => {
       return res.status(400).json({ error: `Necesitás ${reward.pointsCost - user.points} puntos más` });
     }
 
-    // Cooldown de 7 días
     if (user.lastRedemptionAt) {
       const nextAllowed = new Date(user.lastRedemptionAt);
       nextAllowed.setDate(nextAllowed.getDate() + COOLDOWN_DAYS);
