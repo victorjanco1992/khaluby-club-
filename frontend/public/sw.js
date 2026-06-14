@@ -1,5 +1,4 @@
 const CACHE_NAME = 'khaluby-v1';
-
 // Archivos a cachear para uso offline
 const STATIC_ASSETS = [
   '/',
@@ -8,7 +7,6 @@ const STATIC_ASSETS = [
   '/icon-192.png',
   '/icon-512.png',
 ];
-
 // Instalar — cachear assets estáticos
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -18,7 +16,6 @@ self.addEventListener('install', (event) => {
   );
   self.skipWaiting();
 });
-
 // Activar — limpiar caches viejos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -32,18 +29,15 @@ self.addEventListener('activate', (event) => {
   );
   self.clients.claim();
 });
-
 // Fetch — estrategia: Network First para API, Cache First para assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-
   // API calls — siempre red, sin cache
   if (url.pathname.startsWith('/api/') || url.hostname.includes('vercel.app') || url.hostname.includes('railway.app')) {
     event.respondWith(fetch(request).catch(() => new Response('Offline', { status: 503 })));
     return;
   }
-
   // Assets estáticos — Cache First
   if (
     request.destination === 'image' ||
@@ -62,7 +56,6 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-
   // HTML y navegación — Network First, fallback a index.html
   event.respondWith(
     fetch(request)
@@ -72,5 +65,39 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => caches.match('/index.html'))
+  );
+});
+
+// Recibir push y mostrarlo
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  const data = event.data.json();
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon || '/icon-192.png',
+      badge: '/icon-192.png',
+      vibrate: [200, 100, 200],
+      data: data.data || {},
+    })
+  );
+});
+
+// Al tocar la notificación → abrir la app en la URL correcta
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.focus();
+          client.navigate(url);
+          return;
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(url);
+    })
   );
 });
