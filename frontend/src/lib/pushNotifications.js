@@ -1,13 +1,32 @@
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 export async function subscribeToPush() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.warn('Push no soportado en este navegador');
+    return null;
+  }
 
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return null;
+  if (permission !== 'granted') {
+    console.warn('Permiso de notificaciones denegado:', permission);
+    return null;
+  }
 
   const reg = await navigator.serviceWorker.ready;
 
+  // Si ya hay una suscripción activa, no volver a suscribirse
+  const existing = await reg.pushManager.getSubscription();
+  if (existing) {
+    return existing;
+  }
+
   // Obtener VAPID key del backend
-  const { publicKey } = await fetch('/api/notifications/push/vapid-key').then(r => r.json());
+  const vapidRes = await fetch(`${API_URL}/api/notifications/push/vapid-key`);
+  if (!vapidRes.ok) {
+    console.error('Error al obtener VAPID key:', vapidRes.status);
+    return null;
+  }
+  const { publicKey } = await vapidRes.json();
 
   const subscription = await reg.pushManager.subscribe({
     userVisibleOnly: true,
@@ -15,12 +34,21 @@ export async function subscribeToPush() {
   });
 
   // Enviar al backend
-  await fetch('/api/notifications/push/subscribe', {
+  const subRes = await fetch(`${API_URL}/api/notifications/push/subscribe`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${localStorage.getItem('kh_token')}`,
+    },
     body: JSON.stringify({ subscription }),
   });
 
+  if (!subRes.ok) {
+    console.error('Error al guardar suscripción en el backend:', subRes.status, await subRes.text());
+    return null;
+  }
+
+  console.log('✅ Suscripción a push registrada');
   return subscription;
 }
 
