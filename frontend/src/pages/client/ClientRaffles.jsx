@@ -210,7 +210,7 @@ export default function ClientRaffles() {
                     <img
                       src={raffle.prizeImage}
                       alt={raffle.prize}
-                      className="w-full h-44 object-cover"
+                      className="w-full object-contain max-h-64"
                       onError={e => { e.target.parentElement.style.display = 'none'; }}
                     />
                     {/* Badge de estado arriba a la derecha */}
