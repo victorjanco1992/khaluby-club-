@@ -4,7 +4,9 @@ import { authenticate } from '../middleware/auth.middleware.js';
 
 export const notificationsRouter = Router();
 
-// Obtener notificaciones no leídas del usuario
+// ─── NOTIFICACIONES IN-APP ────────────────────────────────────────────────────
+
+// Obtener notificaciones del usuario
 notificationsRouter.get('/', authenticate, async (req, res, next) => {
   try {
     const notifications = await prisma.notification.findMany({
@@ -35,6 +37,57 @@ notificationsRouter.patch('/read-all', authenticate, async (req, res, next) => {
       where: { userId: req.user.id, read: false },
       data: { read: true },
     });
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+// ─── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
+
+// Exponer la clave pública VAPID al frontend (sin autenticación)
+notificationsRouter.get('/push/vapid-key', (req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+// Guardar la suscripción push del dispositivo del usuario
+notificationsRouter.post('/push/subscribe', authenticate, async (req, res, next) => {
+  try {
+    const { subscription } = req.body;
+
+    if (!subscription?.endpoint) {
+      return res.status(400).json({ error: 'Suscripción inválida' });
+    }
+
+    // Usamos el endpoint como id único para evitar duplicados entre dispositivos
+    await prisma.pushSubscription.upsert({
+      where: { id: subscription.endpoint },
+      update: {
+        subscription: JSON.stringify(subscription),
+        userId: req.user.id,
+      },
+      create: {
+        id: subscription.endpoint,
+        userId: req.user.id,
+        subscription: JSON.stringify(subscription),
+      },
+    });
+
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+// Eliminar suscripción push (cuando el usuario desactiva notificaciones)
+notificationsRouter.delete('/push/unsubscribe', authenticate, async (req, res, next) => {
+  try {
+    const { endpoint } = req.body;
+
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint requerido' });
+    }
+
+    await prisma.pushSubscription.deleteMany({
+      where: { id: endpoint, userId: req.user.id },
+    });
+
     res.json({ ok: true });
   } catch (error) { next(error); }
 });
