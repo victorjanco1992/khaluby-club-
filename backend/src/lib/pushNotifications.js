@@ -19,6 +19,8 @@ export async function sendPushToUser(userId, payload) {
           // Suscripción vencida o inválida → borrar
           if (err.statusCode === 410 || err.statusCode === 404) {
             await prisma.pushSubscription.delete({ where: { id: sub.id } });
+          } else {
+            console.error('Push error (sendPushToUser):', err.statusCode, err.body || err.message);
           }
         })
     )
@@ -28,12 +30,15 @@ export async function sendPushToUser(userId, payload) {
 
 export async function sendPushToAll(payload) {
   const subscriptions = await prisma.pushSubscription.findMany();
+
   return Promise.allSettled(
     subscriptions.map(sub =>
       webpush.sendNotification(JSON.parse(sub.subscription), JSON.stringify(payload))
         .catch(async (err) => {
           if (err.statusCode === 410 || err.statusCode === 404) {
             await prisma.pushSubscription.delete({ where: { id: sub.id } });
+          } else {
+            console.error('Push error (sendPushToAll):', err.statusCode, err.body || err.message);
           }
         })
     )
