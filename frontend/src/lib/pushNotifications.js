@@ -23,8 +23,9 @@ export async function subscribeToPush() {
   // Obtener VAPID key del backend
   const vapidRes = await fetch(`${API_URL}/api/notifications/push/vapid-key`);
   if (!vapidRes.ok) {
-    console.error('Error al obtener VAPID key:', vapidRes.status);
-    return { error: 'VAPID_FETCH_FAILED', status: vapidRes.status };
+    const text = await vapidRes.text().catch(() => '');
+    console.error('Error al obtener VAPID key:', vapidRes.status, text);
+    return { error: 'VAPID_FETCH_FAILED', status: vapidRes.status, body: text };
   }
   const { publicKey } = await vapidRes.json();
 
