@@ -6,7 +6,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
+      injectRegister: false, // ya registramos el SW manualmente en index.html
       includeAssets: ['icon-180.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Khaluby App',
@@ -22,6 +26,10 @@ export default defineConfig({
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
+      },
+      injectManifest: {
+        // Evita que falle si hay archivos grandes (ej. fuentes) en el build
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
     }),
   ],
