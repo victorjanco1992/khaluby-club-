@@ -3,13 +3,13 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 export async function subscribeToPush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     console.warn('Push no soportado en este navegador');
-    return { error: 'NOT_SUPPORTED' };
+    return null;
   }
 
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
     console.warn('Permiso de notificaciones denegado:', permission);
-    return { error: 'PERMISSION_' + permission.toUpperCase() };
+    return null;
   }
 
   const reg = await navigator.serviceWorker.ready;
@@ -23,9 +23,8 @@ export async function subscribeToPush() {
   // Obtener VAPID key del backend
   const vapidRes = await fetch(`${API_URL}/api/notifications/push/vapid-key`);
   if (!vapidRes.ok) {
-    const text = await vapidRes.text().catch(() => '');
-    console.error('Error al obtener VAPID key:', vapidRes.status, text);
-    return { error: 'VAPID_FETCH_FAILED', status: vapidRes.status, body: text };
+    console.error('Error al obtener VAPID key:', vapidRes.status);
+    return null;
   }
   const { publicKey } = await vapidRes.json();
 
@@ -45,9 +44,8 @@ export async function subscribeToPush() {
   });
 
   if (!subRes.ok) {
-    const text = await subRes.text();
-    console.error('Error al guardar suscripción en el backend:', subRes.status, text);
-    return { error: 'SUBSCRIBE_BACKEND_FAILED', status: subRes.status, body: text };
+    console.error('Error al guardar suscripción en el backend:', subRes.status, await subRes.text());
+    return null;
   }
 
   console.log('✅ Suscripción a push registrada');
