@@ -23,7 +23,6 @@ export const io = new Server(httpServer, {
   cors: {
     origin: [
       process.env.FRONTEND_URL,
-      'https://khaluby-club.onrender.com',
       'http://localhost:5173',
     ].filter(Boolean),
     methods: ['GET', 'POST'],
