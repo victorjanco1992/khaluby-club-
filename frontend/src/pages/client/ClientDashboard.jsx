@@ -67,7 +67,11 @@ export default function ClientDashboard() {
     if (!user?.id) return;
     subscribeToPush()
       .then(result => {
-        alert('subscribeToPush OK: ' + (result?.endpoint ? result.endpoint.slice(0, 60) + '...' : JSON.stringify(result)));
+        if (result?.endpoint) {
+          alert('subscribeToPush OK: ' + result.endpoint.slice(0, 60) + '...');
+        } else {
+          alert('subscribeToPush RESULT: ' + JSON.stringify(result));
+        }
       })
       .catch(err => {
         alert('subscribeToPush ERROR: ' + err.message + '\n' + err.stack);
