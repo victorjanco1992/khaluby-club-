@@ -1,31 +1,35 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { subscribeToPush, unsubscribeFromPush, getPushPermissionStatus } from '../lib/pushNotifications.js';
-import { useAuthStore } from '../stores/authStore.js';
+import { motion } from 'framer-motion';
+import { subscribeToPush, unsubscribeFromPush, getPushStatus } from '../lib/pushNotifications.js';
 
 export default function PushNotifications() {
-  const { token } = useAuthStore();
   const [status, setStatus] = useState('loading');
-  // status: loading | unsupported | default | granted | denied
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (
+      !('Notification' in window) ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window)
+    ) {
       setStatus('unsupported');
       return;
     }
-    setStatus(Notification.permission);
+    setStatus(getPushStatus());
   }, []);
 
   const handleEnable = async () => {
-    setStatus('loading');
-    const sub = await subscribeToPush(token);
+    setLoading(true);
+    const sub = await subscribeToPush();
     setStatus(sub ? 'granted' : Notification.permission);
+    setLoading(false);
   };
 
   const handleDisable = async () => {
-    setStatus('loading');
-    await unsubscribeFromPush(token);
+    setLoading(true);
+    await unsubscribeFromPush();
     setStatus('default');
+    setLoading(false);
   };
 
   if (status === 'loading' || status === 'unsupported') return null;
@@ -33,9 +37,13 @@ export default function PushNotifications() {
   if (status === 'denied') return (
     <div
       className="rounded-xl px-4 py-3 text-sm"
-      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.20)', color: '#fca5a5' }}
+      style={{
+        background: 'rgba(239,68,68,0.08)',
+        border: '1px solid rgba(239,68,68,0.20)',
+        color: '#fca5a5',
+      }}
     >
-      🔕 Notificaciones bloqueadas — habilitá el permiso en la configuración del navegador
+      🔕 Notificaciones bloqueadas — habilitá el permiso en Configuración del navegador
     </div>
   );
 
@@ -52,15 +60,16 @@ export default function PushNotifications() {
       </div>
       <button
         onClick={handleDisable}
-        className="text-xs px-3 py-1.5 rounded-lg"
+        disabled={loading}
+        className="text-xs px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
         style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(240,244,236,0.50)' }}
       >
-        Desactivar
+        {loading ? '⏳' : 'Desactivar'}
       </button>
     </div>
   );
 
-  // status === 'default' — mostrar banner para activar
+  // status === 'default'
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -79,9 +88,10 @@ export default function PushNotifications() {
       </div>
       <button
         onClick={handleEnable}
-        className="btn-primary w-full py-3 text-sm"
+        disabled={loading}
+        className="btn-primary w-full py-3 text-sm disabled:opacity-50"
       >
-        🔔 Activar notificaciones
+        {loading ? '⏳ Activando...' : '🔔 Activar notificaciones'}
       </button>
     </motion.div>
   );
