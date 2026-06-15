@@ -28,15 +28,7 @@ self.addEventListener('fetch', (event) => {
 
   // API calls — siempre red, sin cache
   if (url.pathname.startsWith('/api/') || url.hostname.includes('vercel.app') || url.hostname.includes('railway.app')) {
-    event.respondWith(
-      fetch(request).catch((err) => {
-        console.error('[SW] Fetch falló para', request.url, err);
-        return new Response(JSON.stringify({ error: 'Offline', detail: String(err) }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      })
-    );
+    event.respondWith(fetch(request).catch(() => new Response('Offline', { status: 503 })));
     return;
   }
 
