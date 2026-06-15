@@ -65,17 +65,7 @@ export default function ClientDashboard() {
   // Suscribir a push notifications una vez autenticado
   useEffect(() => {
     if (!user?.id) return;
-    subscribeToPush()
-      .then(result => {
-        if (result?.endpoint) {
-          alert('subscribeToPush OK: ' + result.endpoint.slice(0, 60) + '...');
-        } else {
-          alert('subscribeToPush RESULT: ' + JSON.stringify(result));
-        }
-      })
-      .catch(err => {
-        alert('subscribeToPush ERROR: ' + err.message + '\n' + err.stack);
-      });
+    subscribeToPush();
   }, [user?.id]);
 
   const { data: raffleData } = useQuery({
