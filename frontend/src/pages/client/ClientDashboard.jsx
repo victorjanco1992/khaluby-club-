@@ -4,14 +4,50 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/authStore.js';
 import { getSocket } from '../../lib/socket.js';
+import { subscribeToPush } from '../../lib/pushNotifications.js';
 import api from '../../lib/api.js';
-import PushNotifications from '../../components/PushNotifications.jsx';
 
 const LEVELS = [
-  { name: 'Bronce',   min: 0,    max: 99,       icon: '🥉', color: '#b45309', colorEnd: '#d97706', bg: 'rgba(180,83,9,0.15)',    border: 'rgba(180,83,9,0.30)'    },
-  { name: 'Plata',    min: 100,  max: 499,      icon: '🥈', color: '#94a3b8', colorEnd: '#cbd5e1', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.28)' },
-  { name: 'Oro',      min: 500,  max: 1499,     icon: '🥇', color: '#eab308', colorEnd: '#fbbf24', bg: 'rgba(234,179,8,0.12)',   border: 'rgba(234,179,8,0.28)'   },
-  { name: 'Diamante', min: 1500, max: Infinity, icon: '💎', color: '#22d3ee', colorEnd: '#a78bfa', bg: 'rgba(34,211,238,0.10)',  border: 'rgba(167,139,250,0.30)' },
+  {
+    name: 'Bronce',
+    min: 0,
+    max: 99,
+    icon: '🥉',
+    color: '#b45309',       // color sólido para textos y barras
+    colorEnd: '#d97706',
+    bg: 'rgba(180,83,9,0.15)',
+    border: 'rgba(180,83,9,0.30)',
+  },
+  {
+    name: 'Plata',
+    min: 100,
+    max: 499,
+    icon: '🥈',
+    color: '#94a3b8',
+    colorEnd: '#cbd5e1',
+    bg: 'rgba(148,163,184,0.12)',
+    border: 'rgba(148,163,184,0.28)',
+  },
+  {
+    name: 'Oro',
+    min: 500,
+    max: 1499,
+    icon: '🥇',
+    color: '#eab308',
+    colorEnd: '#fbbf24',
+    bg: 'rgba(234,179,8,0.12)',
+    border: 'rgba(234,179,8,0.28)',
+  },
+  {
+    name: 'Diamante',
+    min: 1500,
+    max: Infinity,
+    icon: '💎',
+    color: '#22d3ee',
+    colorEnd: '#a78bfa',
+    bg: 'rgba(34,211,238,0.10)',
+    border: 'rgba(167,139,250,0.30)',
+  },
 ];
 
 const getLevel = (pts) => LEVELS.find(l => pts >= l.min && pts <= l.max) || LEVELS[0];
@@ -26,8 +62,31 @@ export default function ClientDashboard() {
     getSocket(user.id);
   }, [user?.id]);
 
-  // NO llamar subscribeToPush() automáticamente
-  // El usuario lo activa manualmente con el componente PushNotifications
+  // Suscribir a push notifications una vez autenticado
+  useEffect(() => {
+    if (!user?.id) return;
+
+    alert(
+      'DIAG:\n' +
+      'serviceWorker: ' + ('serviceWorker' in navigator) + '\n' +
+      'PushManager: ' + ('PushManager' in window) + '\n' +
+      'isSecureContext: ' + window.isSecureContext + '\n' +
+      'location: ' + window.location.href + '\n' +
+      'userAgent: ' + navigator.userAgent
+    );
+
+    subscribeToPush()
+      .then(result => {
+        if (result?.endpoint) {
+          alert('subscribeToPush OK: ' + result.endpoint.slice(0, 60) + '...');
+        } else {
+          alert('subscribeToPush RESULT: ' + JSON.stringify(result));
+        }
+      })
+      .catch(err => {
+        alert('subscribeToPush ERROR: ' + err.message + '\n' + err.stack);
+      });
+  }, [user?.id]);
 
   const { data: raffleData } = useQuery({
     queryKey: ['active-raffle'],
@@ -51,41 +110,54 @@ export default function ClientDashboard() {
   return (
     <div className="p-4 space-y-5">
 
-      {/* Puntos + Nivel */}
+      {/* ===== PUNTOS + NIVEL ===== */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         className="card overflow-hidden relative"
         style={{ border: `1px solid ${level.border}` }}
       >
+        {/* Glow de fondo */}
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: `radial-gradient(ellipse at 85% 20%, ${level.bg}, transparent 65%)` }}
+          style={{
+            background: `radial-gradient(ellipse at 85% 20%, ${level.bg}, transparent 65%)`,
+          }}
         />
+
         <div className="relative p-5">
+          {/* Fila principal: puntos + nivel */}
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'rgba(240,244,236,0.45)' }}>
+              <p className="text-xs uppercase tracking-wider mb-1"
+                style={{ color: 'rgba(240,244,236,0.45)' }}>
                 Tus puntos
               </p>
               <p className="font-mono font-black text-5xl text-white leading-none">
                 {points.toLocaleString()}
               </p>
             </div>
+
+            {/* Badge de nivel */}
             <div
               className="flex flex-col items-center px-4 py-2.5 rounded-2xl flex-shrink-0"
               style={{ background: level.bg, border: `1px solid ${level.border}` }}
             >
               <span className="text-3xl">{level.icon}</span>
-              <p className="text-sm font-black mt-1 tracking-wide" style={{ color: level.color }}>
+              <p
+                className="text-sm font-black mt-1 tracking-wide"
+                style={{ color: level.color }}
+              >
                 {level.name}
               </p>
             </div>
           </div>
 
+          {/* Barra de progreso */}
           {nextLevel ? (
             <div>
-              <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(240,244,236,0.45)' }}>
+              <div className="flex justify-between text-xs mb-2"
+                style={{ color: 'rgba(240,244,236,0.45)' }}>
                 <span className="font-mono">{points.toLocaleString()} pts</span>
                 <span>
                   Faltan{' '}
@@ -95,7 +167,10 @@ export default function ClientDashboard() {
                   {' '}para {nextLevel.icon} {nextLevel.name}
                 </span>
               </div>
-              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+              <div
+                className="h-2.5 rounded-full overflow-hidden"
+                style={{ background: 'rgba(255,255,255,0.07)' }}
+              >
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
@@ -109,8 +184,10 @@ export default function ClientDashboard() {
               </div>
             </div>
           ) : (
+            // Nivel máximo
             <div className="flex items-center gap-2 mt-2">
-              <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+              <div className="flex-1 h-2.5 rounded-full overflow-hidden"
+                style={{ background: 'rgba(255,255,255,0.07)' }}>
                 <div className="h-full w-full rounded-full"
                   style={{ background: `linear-gradient(90deg, ${level.color}, ${level.colorEnd})` }} />
               </div>
@@ -120,7 +197,11 @@ export default function ClientDashboard() {
             </div>
           )}
 
-          <div className="flex gap-4 mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          {/* Mini stats */}
+          <div
+            className="flex gap-4 mt-4 pt-4"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+          >
             {activeNumbers.length > 0 && (
               <div>
                 <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>Números activos</p>
@@ -139,14 +220,16 @@ export default function ClientDashboard() {
         </div>
       </motion.div>
 
-      {/* Banner notificaciones push */}
-      <PushNotifications />
-
-      {/* Sorteo activo */}
+      {/* ===== SORTEO ACTIVO ===== */}
       {raffleData && (
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
           <Link to="/sorteos">
-            <div className="card overflow-hidden transition-all">
+            <div className="card overflow-hidden transition-all"
+              style={{ ':hover': { borderColor: 'rgba(92,181,22,0.20)' } }}>
               {raffleData.prizeImage && (
                 <div className="relative">
                   <img
@@ -155,8 +238,10 @@ export default function ClientDashboard() {
                     className="w-full h-40 object-cover"
                     onError={e => { e.target.parentElement.style.display = 'none'; }}
                   />
-                  <div className="absolute inset-0"
-                    style={{ background: 'linear-gradient(to top, rgba(8,13,5,0.90) 0%, transparent 55%)' }} />
+                  <div
+                    className="absolute inset-0"
+                    style={{ background: 'linear-gradient(to top, rgba(8,13,5,0.90) 0%, transparent 55%)' }}
+                  />
                   <div className="absolute top-3 right-3">
                     <span className="badge font-semibold"
                       style={{ background: 'rgba(92,181,22,0.20)', color: '#9de360', border: '1px solid rgba(92,181,22,0.35)' }}>
@@ -219,7 +304,7 @@ export default function ClientDashboard() {
         </motion.div>
       )}
 
-      {/* Accesos rápidos */}
+      {/* ===== ACCESOS RÁPIDOS ===== */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
         <h3 className="text-xs uppercase tracking-wider mb-3" style={{ color: 'rgba(240,244,236,0.40)' }}>
           Accesos rápidos
@@ -242,7 +327,7 @@ export default function ClientDashboard() {
         </div>
       </motion.div>
 
-      {/* Último sorteo */}
+      {/* ===== ÚLTIMO SORTEO ===== */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
         <Link to="/sorteo" target="_blank">
           <div className="card p-4 flex items-center gap-3 transition-all">
