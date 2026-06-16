@@ -1,128 +1,98 @@
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { precacheAndRoute } from 'workbox-precaching';
 
-// Workbox inyecta aquí la lista de assets durante el build
+// Workbox inyecta aquí la lista de assets a precachear durante el build
 precacheAndRoute(self.__WB_MANIFEST);
-cleanupOutdatedCaches();
 
 const CACHE_NAME = 'khaluby-v1';
 
-// ✅ Forzar activación inmediata cuando se pide desde el cliente
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
-});
-
-self.addEventListener('install', () => {
-  self.skipWaiting();
-});
-
+// Activar — limpiar caches viejos (no tocar el cache de precache de Workbox)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k !== CACHE_NAME && !k.startsWith('workbox-'))
-            .map((k) => caches.delete(k))
-        )
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME && !key.startsWith('workbox-'))
+          .map((key) => caches.delete(key))
       )
-      .then(() => self.clients.claim())
+    )
   );
+  self.clients.claim();
 });
 
-// Fetch — Network First para API, Cache First para assets
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+self.skipWaiting();
 
-  // API y backends — siempre red, sin cache
-  if (
-    url.pathname.startsWith('/api/') ||
-    url.hostname.includes('railway.app') ||
-    url.hostname.includes('render.com') ||
-    url.hostname.includes('vercel.app')
-  ) {
-    event.respondWith(
-      fetch(event.request).catch(() => new Response('Offline', { status: 503 }))
-    );
+// Fetch — estrategia: Network First para API, Cache First para assets dinámicos
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // API calls — siempre red, sin cache
+  if (url.pathname.startsWith('/api/') || url.hostname.includes('vercel.app') || url.hostname.includes('railway.app')) {
+    event.respondWith(fetch(request).catch(() => new Response('Offline', { status: 503 })));
     return;
   }
 
-  // Assets estáticos — Cache First
+  // Assets dinámicos no precacheados — Cache First
   if (
-    event.request.destination === 'image' ||
-    event.request.destination === 'font' ||
+    request.destination === 'image' ||
+    request.destination === 'font' ||
     url.pathname.endsWith('.js') ||
     url.pathname.endsWith('.css')
   ) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
-        return (
-          cached ||
-          fetch(event.request).then((response) => {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-            return response;
-          })
-        );
+      caches.match(request).then((cached) => {
+        return cached || fetch(request).then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        });
       })
     );
     return;
   }
 
-  // HTML y navegación — Network First, fallback a index.html
+  // HTML y navegación — Network First, fallback a index.html precacheado
   event.respondWith(
-    fetch(event.request)
+    fetch(request)
       .then((response) => {
         const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         return response;
       })
       .catch(() => caches.match('/index.html'))
   );
 });
 
-// ✅ Recibir push y mostrar notificación
+// Recibir push y mostrarlo
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-
-  let data;
-  try {
-    data = event.data.json();
-  } catch {
-    data = { title: 'Khaluby', body: event.data.text() };
-  }
-
-  const options = {
-    body: data.body || '',
-    icon: data.icon || '/icon-192.png',
-    badge: '/icon-192.png',
-    vibrate: [200, 100, 200],
-    data: data.data || {},
-    requireInteraction: false,
-  };
+  const data = event.data.json();
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Khaluby', options)
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon || '/icon-192.png',
+      badge: '/icon-192.png',
+      vibrate: [200, 100, 200],
+      data: data.data || {},
+    })
   );
 });
 
-// ✅ Click en notificación → abrir o enfocar la app
+// Al tocar la notificación → abrir la app en la URL correcta
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
-
   event.waitUntil(
-    clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.focus();
-            client.navigate(url);
-            return;
-          }
+    clients.matchAll({ type: 'window' }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.focus();
+          client.navigate(url);
+          return;
         }
-        if (clients.openWindow) return clients.openWindow(url);
-      })
+      }
+      if (clients.openWindow) return clients.openWindow(url);
+    })
   );
 });
