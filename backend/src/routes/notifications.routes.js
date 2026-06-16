@@ -57,19 +57,28 @@ notificationsRouter.post('/push/subscribe', authenticate, async (req, res, next)
       return res.status(400).json({ error: 'Suscripción inválida' });
     }
 
-    // Usamos el endpoint como id único para evitar duplicados entre dispositivos
-    await prisma.pushSubscription.upsert({
-      where: { id: subscription.endpoint },
-      update: {
-        subscription: JSON.stringify(subscription),
+    // ✅ Buscar por endpoint dentro del JSON almacenado
+    const existing = await prisma.pushSubscription.findFirst({
+      where: {
         userId: req.user.id,
-      },
-      create: {
-        id: subscription.endpoint,
-        userId: req.user.id,
-        subscription: JSON.stringify(subscription),
+        subscription: { contains: subscription.endpoint },
       },
     });
+
+    if (existing) {
+      // Actualizar — las keys pueden rotar aunque el endpoint sea el mismo
+      await prisma.pushSubscription.update({
+        where: { id: existing.id },
+        data: { subscription: JSON.stringify(subscription) },
+      });
+    } else {
+      await prisma.pushSubscription.create({
+        data: {
+          userId: req.user.id,
+          subscription: JSON.stringify(subscription),
+        },
+      });
+    }
 
     res.json({ ok: true });
   } catch (error) { next(error); }
@@ -84,8 +93,12 @@ notificationsRouter.delete('/push/unsubscribe', authenticate, async (req, res, n
       return res.status(400).json({ error: 'Endpoint requerido' });
     }
 
+    // ✅ Buscar por endpoint dentro del JSON almacenado
     await prisma.pushSubscription.deleteMany({
-      where: { id: endpoint, userId: req.user.id },
+      where: {
+        userId: req.user.id,
+        subscription: { contains: endpoint },
+      },
     });
 
     res.json({ ok: true });
