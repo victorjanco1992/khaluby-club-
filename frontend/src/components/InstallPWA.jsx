@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuthStore } from '../stores/authStore.js';
 
 export default function InstallPWA() {
+  const { user } = useAuthStore();
   const [prompt, setPrompt] = useState(null);
   const [show, setShow] = useState(false);
   const [installed, setInstalled] = useState(false);
@@ -15,8 +17,7 @@ export default function InstallPWA() {
 
     const handler = (e) => {
       e.preventDefault();
-      setPrompt(e);
-      setShow(true);
+      setPrompt(e); // Guardamos el evento, pero NO mostramos el banner todavía
     };
 
     window.addEventListener('beforeinstallprompt', handler);
@@ -27,6 +28,15 @@ export default function InstallPWA() {
 
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
+
+  // ✅ Recién mostramos el banner cuando: hay prompt disponible Y el usuario está logueado
+  useEffect(() => {
+    if (prompt && user && !installed) {
+      // Pequeño delay para que no aparezca de golpe apenas entra al dashboard
+      const timer = setTimeout(() => setShow(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [prompt, user, installed]);
 
   const handleInstall = async () => {
     if (!prompt) return;
@@ -39,7 +49,7 @@ export default function InstallPWA() {
     setPrompt(null);
   };
 
-  if (installed) return null;
+  if (installed || !user) return null;
 
   return (
     <AnimatePresence>
@@ -72,7 +82,6 @@ export default function InstallPWA() {
                 style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(240,244,236,0.50)' }}
               >✕</button>
             </div>
-
             <div className="flex gap-2">
               <button
                 onClick={() => setShow(false)}
