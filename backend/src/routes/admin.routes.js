@@ -4,6 +4,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 import { getConfig, setConfig, calculatePoints, calculateRaffleNumbers } from '../lib/config.js';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 
 export const adminRouter = Router();
 adminRouter.use(authenticate, requireAdmin);
@@ -136,6 +137,7 @@ adminRouter.post('/clients', async (req, res, next) => {
         phone: data.phone,
         password: hashed,
         role: 'CLIENT',
+        qrCode: uuidv4(),
       },
       select: {
         id: true, name: true, dni: true, phone: true, email: true,
