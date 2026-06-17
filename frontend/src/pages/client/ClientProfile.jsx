@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/authStore.js';
 import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
 import PushNotifications from '../../components/PushNotifications.jsx';
+import { useInstallStore } from '../../stores/installStore.js';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -189,6 +190,19 @@ export default function ClientProfile() {
   const { user, qrDataUrl, refreshMe } = useAuthStore();
   const [showPhone, setShowPhone] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { deferredPrompt, isInstalled, triggerInstall } = useInstallStore();
+  const [installing, setInstalling] = useState(false);
+
+  const handleInstallClick = async () => {
+    setInstalling(true);
+    const { outcome } = await triggerInstall();
+    setInstalling(false);
+    if (outcome === 'accepted') {
+      toast.success('¡App instalada! 🎉');
+    } else if (outcome === 'unavailable') {
+      toast.error('Tu navegador no permite instalar la app desde acá. Probá desde el menú "Agregar a pantalla de inicio".');
+    }
+  };
 
   useEffect(() => { refreshMe(); }, []);
 
@@ -307,12 +321,6 @@ export default function ClientProfile() {
         </motion.div>
       )}
 
-      {/* Notificaciones push */}
-      <div className="card p-5">
-        <h3 className="font-semibold text-white mb-3">Notificaciones</h3>
-        <PushNotifications />
-      </div>
-
       {/* Datos personales + edición */}
       <div className="card p-5">
         <h3 className="font-semibold text-white mb-3">Datos personales</h3>
@@ -367,6 +375,40 @@ export default function ClientProfile() {
             🔐 Cambiar
           </button>
         </div>
+      </div>
+
+      {/* Instalar app */}
+      {!isInstalled && (
+        <div className="card p-5">
+          <h3 className="font-semibold text-white mb-3">App</h3>
+          <div className="flex items-center gap-3 mb-3">
+            <img src="/icon-192.png" alt="Khaluby" className="w-11 h-11 rounded-xl flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-white">Instalá Khaluby en tu celular</p>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.45)' }}>
+                Accedé más rápido desde tu pantalla de inicio
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleInstallClick}
+            disabled={installing}
+            className="btn-primary w-full py-3 text-sm disabled:opacity-50"
+          >
+            {installing ? '⏳ Instalando...' : '📲 Instalar app'}
+          </button>
+          {!deferredPrompt && (
+            <p className="text-xs mt-2 text-center" style={{ color: 'rgba(240,244,236,0.35)' }}>
+              En iPhone: tocá Compartir → "Agregar a pantalla de inicio"
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Notificaciones push */}
+      <div className="card p-5">
+        <h3 className="font-semibold text-white mb-3">Notificaciones</h3>
+        <PushNotifications />
       </div>
 
       {/* Modales */}
