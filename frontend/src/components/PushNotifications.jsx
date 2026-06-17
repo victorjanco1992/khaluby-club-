@@ -1,34 +1,31 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { subscribeToPush, unsubscribeFromPush, getPushStatus } from '../lib/pushNotifications.js';
+import { subscribeToPush, unsubscribeFromPush, getRealPushStatus } from '../lib/pushNotifications.js';
 
 export default function PushNotifications() {
   const [status, setStatus] = useState('loading');
   const [loading, setLoading] = useState(false);
 
+  const checkStatus = async () => {
+    const real = await getRealPushStatus();
+    setStatus(real);
+  };
+
   useEffect(() => {
-    if (
-      !('Notification' in window) ||
-      !('serviceWorker' in navigator) ||
-      !('PushManager' in window)
-    ) {
-      setStatus('unsupported');
-      return;
-    }
-    setStatus(getPushStatus());
+    checkStatus();
   }, []);
 
   const handleEnable = async () => {
     setLoading(true);
-    const sub = await subscribeToPush();
-    setStatus(sub ? 'granted' : Notification.permission);
+    await subscribeToPush();
+    await checkStatus(); // ✅ vuelve a chequear el estado real, no asume
     setLoading(false);
   };
 
   const handleDisable = async () => {
     setLoading(true);
     await unsubscribeFromPush();
-    setStatus('default');
+    await checkStatus(); // ✅ idem
     setLoading(false);
   };
 
