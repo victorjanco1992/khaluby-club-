@@ -112,6 +112,46 @@ adminRouter.get('/clients', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Crear cliente manualmente (admin) — contraseña por defecto = DNI
+adminRouter.post('/clients', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      name: z.string().min(2, 'Nombre muy corto'),
+      dni: z.string().min(6, 'DNI inválido').max(10, 'DNI inválido'),
+      phone: z.string().min(8, 'Teléfono inválido'),
+    });
+    const data = schema.parse(req.body);
+
+    const existing = await prisma.user.findUnique({ where: { dni: data.dni } });
+    if (existing) {
+      return res.status(409).json({ error: 'Ya existe un cliente con ese DNI' });
+    }
+
+    const hashed = await bcrypt.hash(data.dni, 12);
+
+    const user = await prisma.user.create({
+      data: {
+        name: data.name,
+        dni: data.dni,
+        phone: data.phone,
+        password: hashed,
+        role: 'CLIENT',
+      },
+      select: {
+        id: true, name: true, dni: true, phone: true, email: true,
+        points: true, totalSpent: true, isActive: true, createdAt: true,
+      },
+    });
+
+    res.status(201).json({ user, message: `Cliente creado. Contraseña inicial: ${data.dni}` });
+  } catch (error) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    next(error);
+  }
+});
+
 adminRouter.patch('/clients/:id/toggle', async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.params.id } });
