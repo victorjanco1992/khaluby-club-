@@ -4,6 +4,93 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
 
+function CreateClientModal({ onClose, onCreated }) {
+  const [form, setForm] = useState({ name: '', dni: '', phone: '' });
+
+  const createMutation = useMutation({
+    mutationFn: (data) => api.post('/api/admin/clients', data),
+    onSuccess: (res) => {
+      toast.success(res.data.message || 'Cliente creado');
+      onCreated();
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error al crear cliente'),
+  });
+
+  const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-5"
+        style={{ background: '#0d1a0a', border: '1px solid rgba(92,181,22,0.15)', maxHeight: '90vh', overflowY: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 rounded-full mx-auto mb-4 sm:hidden"
+          style={{ background: 'rgba(255,255,255,0.15)' }} />
+
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-display font-bold text-xl text-white">Nuevo cliente</h3>
+            <p className="text-xs mt-0.5" style={{ color: 'rgba(240,244,236,0.40)' }}>
+              La contraseña inicial será el DNI
+            </p>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(240,244,236,0.60)' }}>
+            ✕
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => { e.preventDefault(); createMutation.mutate(form); }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="label">Nombre completo</label>
+            <input
+              type="text" className="input" placeholder="Juan García"
+              value={form.name} onChange={set('name')} required minLength={2}
+            />
+          </div>
+          <div>
+            <label className="label">DNI</label>
+            <input
+              type="text" inputMode="numeric" className="input" placeholder="30123456"
+              value={form.dni} onChange={set('dni')} required minLength={6} maxLength={10}
+            />
+          </div>
+          <div>
+            <label className="label">Teléfono</label>
+            <input
+              type="tel" className="input" placeholder="2614001234"
+              value={form.phone} onChange={set('phone')} required minLength={8}
+            />
+          </div>
+
+          <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(92,181,22,0.08)', border: '1px solid rgba(92,181,22,0.20)', color: 'rgba(240,244,236,0.55)' }}>
+            🔑 Contraseña por defecto: <span className="font-mono text-white">{form.dni || 'DNI del cliente'}</span>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
+            <button type="submit" className="btn-primary flex-1" disabled={createMutation.isPending}>
+              {createMutation.isPending ? '⏳...' : '✓ Crear cliente'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function EditClientModal({ client, onClose, onSaved }) {
   const [form, setForm] = useState({
     name: client.name,
@@ -151,6 +238,7 @@ export default function AdminClients() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [editingClient, setEditingClient] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const handleSearch = (e) => {
     const val = e.target.value;
@@ -186,11 +274,19 @@ export default function AdminClients() {
 
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
-      <div>
-        <h1 className="font-display font-bold text-2xl text-white">Clientes</h1>
-        <p className="text-sm mt-0.5" style={{ color: 'rgba(240,244,236,0.45)' }}>
-          {data?.total || 0} clientes registrados
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display font-bold text-2xl text-white">Clientes</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'rgba(240,244,236,0.45)' }}>
+            {data?.total || 0} clientes registrados
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="btn-primary px-4 py-2.5 text-sm whitespace-nowrap"
+        >
+          ➕ Nuevo
+        </button>
       </div>
 
       {/* Buscador */}
@@ -297,6 +393,12 @@ export default function AdminClients() {
       )}
 
       <AnimatePresence>
+        {showCreate && (
+          <CreateClientModal
+            onClose={() => setShowCreate(false)}
+            onCreated={() => queryClient.invalidateQueries({ queryKey: ['admin-clients'] })}
+          />
+        )}
         {editingClient && (
           <EditClientModal
             client={editingClient}
