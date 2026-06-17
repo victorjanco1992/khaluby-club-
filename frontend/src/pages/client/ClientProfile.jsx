@@ -4,6 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/authStore.js';
 import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
+import PushNotifications from '../../components/PushNotifications.jsx';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -161,7 +162,6 @@ function EditPasswordModal({ onClose }) {
             {show ? '🙈 Ocultar' : '👁 Mostrar'} contraseñas
           </button>
 
-          {/* Indicador de coincidencia */}
           {next && confirm && (
             <p className="text-xs font-medium"
               style={{ color: next === confirm ? '#9de360' : '#fca5a5' }}>
@@ -306,6 +306,12 @@ export default function ClientProfile() {
           </div>
         </motion.div>
       )}
+
+      {/* Notificaciones push */}
+      <div className="card p-5">
+        <h3 className="font-semibold text-white mb-3">Notificaciones</h3>
+        <PushNotifications />
+      </div>
 
       {/* Datos personales + edición */}
       <div className="card p-5">
