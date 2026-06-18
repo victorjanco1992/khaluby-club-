@@ -97,9 +97,59 @@ function RaffleFormModal({ raffle, onClose, onSaved }) {
   );
 }
 
+// ── Listado desplegable de participantes ──────────────────────────────────
+function ParticipantsList({ raffleId, isOpen }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['raffle-entries', raffleId],
+    queryFn: () => api.get(`/api/raffles/${raffleId}`).then(r => r.data),
+    enabled: isOpen, // solo consulta cuando está desplegado
+  });
+
+  const entries = data?.raffle?.entries || [];
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="overflow-hidden"
+        >
+          <div className="mt-3 pt-3 border-t border-white/10">
+            {isLoading && (
+              <p className="text-white/30 text-sm py-2">Cargando participantes...</p>
+            )}
+            {!isLoading && entries.length === 0 && (
+              <p className="text-white/30 text-sm py-2">Todavía no hay participantes.</p>
+            )}
+            {!isLoading && entries.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto pr-1">
+                {entries.map((entry) => (
+                  <div
+                    key={entry.id || entry.number}
+                    className="flex items-center gap-2 bg-white/5 rounded-lg px-2.5 py-1.5 text-sm"
+                  >
+                    <span className="font-mono text-violet-400 font-semibold flex-shrink-0">
+                      #{entry.number}
+                    </span>
+                    <span className="text-white/70 truncate">{entry.user?.name || 'Sin nombre'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export default function AdminRaffles() {
   const queryClient = useQueryClient();
   const [modal, setModal] = useState(null);
+  const [expandedId, setExpandedId] = useState(null); // ← sorteo con participantes desplegados
 
   const { data } = useQuery({
     queryKey: ['admin-raffles'],
@@ -112,7 +162,6 @@ export default function AdminRaffles() {
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   });
 
-  // ✅ Desactivar un sorteo activo (vuelve a PENDING sin borrar participantes)
   const deactivateMutation = useMutation({
     mutationFn: (id) => api.put(`/api/raffles/${id}`, { status: 'PENDING' }),
     onSuccess: () => { toast.success('Sorteo desactivado'); queryClient.invalidateQueries({ queryKey: ['admin-raffles'] }); },
@@ -132,6 +181,10 @@ export default function AdminRaffles() {
   });
 
   const raffles = data?.raffles || [];
+
+  const toggleExpanded = (id) => {
+    setExpandedId(prev => (prev === id ? null : id));
+  };
 
   return (
     <div className="space-y-6">
@@ -195,7 +248,17 @@ export default function AdminRaffles() {
                     ✏️ Editar
                   </button>
 
-                  {/* ✅ Activar — disponible siempre que esté PENDING */}
+                  {/* Ver participantes — disponible siempre que haya al menos 1 */}
+                  {(raffle._count?.entries || 0) > 0 && (
+                    <button
+                      onClick={() => toggleExpanded(raffle.id)}
+                      className="bg-white/8 hover:bg-white/15 text-white/60 border border-white/10 text-xs py-1.5 px-3 rounded-xl transition-all flex items-center gap-1"
+                    >
+                      👥 Participantes
+                      <span className={`transition-transform ${expandedId === raffle.id ? 'rotate-180' : ''}`}>▾</span>
+                    </button>
+                  )}
+
                   {raffle.status === 'PENDING' && (
                     <button
                       onClick={() => activateMutation.mutate(raffle.id)}
@@ -206,7 +269,6 @@ export default function AdminRaffles() {
                     </button>
                   )}
 
-                  {/* ✅ Sortear — disponible para cualquier sorteo ACTIVE */}
                   {raffle.status === 'ACTIVE' && (
                     <Link
                       to={`/admin/sorteos/${raffle.id}/realizar`}
@@ -216,7 +278,6 @@ export default function AdminRaffles() {
                     </Link>
                   )}
 
-                  {/* ✅ Desactivar — vuelve a PENDING sin borrar participantes */}
                   {raffle.status === 'ACTIVE' && (
                     <button
                       onClick={() => {
@@ -230,7 +291,6 @@ export default function AdminRaffles() {
                     </button>
                   )}
 
-                  {/* Resetear — borra participantes */}
                   {(raffle.status === 'ACTIVE' || raffle.status === 'FINISHED') && (
                     <button
                       onClick={() => { if (confirm('¿Resetear participaciones? Esto borra todos los números asignados.')) resetMutation.mutate(raffle.id); }}
@@ -249,6 +309,9 @@ export default function AdminRaffles() {
                     </button>
                   )}
                 </div>
+
+                {/* Lista desplegable de participantes */}
+                <ParticipantsList raffleId={raffle.id} isOpen={expandedId === raffle.id} />
               </div>
             </div>
           </motion.div>
