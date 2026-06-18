@@ -25,14 +25,17 @@ export const createPurchase = async (req, res, next) => {
 
     const numbersCount = calculateRaffleNumbers(data.amount, data.paymentMethod, config);
 
-    // Buscar sorteo activo
-    let raffleId = data.raffleId;
-    if (!raffleId) {
-      const active = await prisma.raffle.findFirst({ where: { status: 'ACTIVE' } });
-      raffleId = active?.id;
+    // ✅ Buscar TODOS los sorteos activos (no solo el primero)
+    let activeRaffles = [];
+    if (data.raffleId) {
+      // Si se especificó un sorteo concreto, usar solo ese
+      const raffle = await prisma.raffle.findUnique({ where: { id: data.raffleId } });
+      if (raffle?.status === 'ACTIVE') activeRaffles = [raffle];
+    } else {
+      activeRaffles = await prisma.raffle.findMany({ where: { status: 'ACTIVE' } });
     }
 
-    // Actualizar puntos
+    // Actualizar puntos del usuario
     await prisma.user.update({
       where: { id: data.userId },
       data: {
@@ -41,20 +44,23 @@ export const createPurchase = async (req, res, next) => {
       },
     });
 
-    // Asignar números de sorteo
-    let assignedNumbers = [];
-    if (raffleId && numbersCount > 0) {
-      const raffle = await prisma.raffle.findUnique({ where: { id: raffleId } });
-      if (raffle?.status === 'ACTIVE') {
+    // ✅ Asignar números en CADA sorteo activo
+    let totalAssignedNumbers = 0;
+    const assignedPerRaffle = []; // [{ raffleId, raffleTitile, numbers: [] }]
+
+    if (numbersCount > 0 && activeRaffles.length > 0) {
+      for (const raffle of activeRaffles) {
+        const assignedNumbers = [];
+
         for (let i = 0; i < numbersCount; i++) {
           const last = await prisma.raffleEntry.findFirst({
-            where: { raffleId },
+            where: { raffleId: raffle.id },
             orderBy: { number: 'desc' },
           });
           const nextNumber = (last?.number || 0) + 1;
           try {
             await prisma.raffleEntry.create({
-              data: { raffleId, userId: data.userId, number: nextNumber },
+              data: { raffleId: raffle.id, userId: data.userId, number: nextNumber },
             });
             assignedNumbers.push(nextNumber);
           } catch (err) {
@@ -62,12 +68,24 @@ export const createPurchase = async (req, res, next) => {
             throw err;
           }
         }
-        await prisma.raffle.update({
-          where: { id: raffleId },
-          data: { totalNumbers: { increment: assignedNumbers.length } },
-        });
+
+        if (assignedNumbers.length > 0) {
+          await prisma.raffle.update({
+            where: { id: raffle.id },
+            data: { totalNumbers: { increment: assignedNumbers.length } },
+          });
+          assignedPerRaffle.push({
+            raffleId: raffle.id,
+            raffleTitle: raffle.title,
+            numbers: assignedNumbers,
+          });
+          totalAssignedNumbers += assignedNumbers.length;
+        }
       }
     }
+
+    // Para la compra guardamos todos los números asignados (de todos los sorteos)
+    const allAssignedNumbers = assignedPerRaffle.flatMap(r => r.numbers);
 
     // Registrar compra
     await prisma.purchase.create({
@@ -75,7 +93,7 @@ export const createPurchase = async (req, res, next) => {
         userId:        data.userId,
         amount:        data.amount,
         points:        pointsEarned,
-        numbers:       assignedNumbers,
+        numbers:       allAssignedNumbers,
         paymentMethod: data.paymentMethod,
         notes:         data.notes
           ? `${data.multiplier > 1 ? `[x${data.multiplier}pts] ` : ''}${data.notes}`
@@ -92,27 +110,41 @@ export const createPurchase = async (req, res, next) => {
     const isCash = data.paymentMethod === 'CASH';
     const hasMultiplier = data.multiplier > 1;
 
-    // Push: notificar al usuario que se registró su compra
-    const activeRaffle = raffleId ? await prisma.raffle.findUnique({ where: { id: raffleId } }) : null;
+    // Push — armar mensaje según cuántos sorteos activos hay
+    let pushBody;
+    if (assignedPerRaffle.length === 0) {
+      pushBody = `Sumaste ${pointsEarned} puntos. ¡Seguí comprando!`;
+    } else if (assignedPerRaffle.length === 1) {
+      pushBody = `Sumaste ${pointsEarned} pts y participás en "${assignedPerRaffle[0].raffleTitle}" 🎰`;
+    } else {
+      const titles = assignedPerRaffle.map(r => `"${r.raffleTitle}"`).join(' y ');
+      pushBody = `Sumaste ${pointsEarned} pts y participás en ${titles} 🎰`;
+    }
 
     await sendPushToUser(data.userId, {
       title: '🛒 ¡Compra registrada!',
-      body: activeRaffle
-        ? `Sumaste ${pointsEarned} puntos y estás participando en "${activeRaffle.title}" 🎰`
-        : `Sumaste ${pointsEarned} puntos. ¡Seguí comprando!`,
+      body: pushBody,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       data: { url: '/dashboard' },
     });
+
+    // Armar mensaje de respuesta
+    const raffleInfo = assignedPerRaffle.length === 0
+      ? 'sin sorteo activo'
+      : assignedPerRaffle.length === 1
+        ? `${allAssignedNumbers.length} número(s) en "${assignedPerRaffle[0].raffleTitle}"`
+        : `${allAssignedNumbers.length} números en ${assignedPerRaffle.length} sorteos`;
 
     res.status(201).json({
       message: [
         `✅ +${pointsEarned} puntos`,
         isCash ? '💵 efectivo' : '📲 transfer',
         hasMultiplier ? `🔥 x${data.multiplier}` : '',
-        `· ${assignedNumbers.length} número(s) de sorteo`,
+        `· ${raffleInfo}`,
       ].filter(Boolean).join(' '),
-      assignedNumbers,
+      assignedNumbers: allAssignedNumbers,
+      assignedPerRaffle,
       pointsEarned,
       multiplier: data.multiplier,
       user,
