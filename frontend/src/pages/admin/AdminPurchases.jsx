@@ -79,6 +79,43 @@ function UserCard({ user, onClear }) {
   );
 }
 
+// Lista de resultados cuando hay más de uno
+function UserResults({ users, onSelect }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl overflow-hidden divide-y"
+      style={{ border: '1px solid rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.06)' }}
+    >
+      {users.map(user => (
+        <button
+          key={user.id}
+          onClick={() => onSelect(user)}
+          className="w-full p-3 flex items-center gap-3 text-left transition-colors"
+          style={{ background: 'rgba(255,255,255,0.02)' }}
+        >
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0"
+            style={{ background: 'rgba(92,181,22,0.15)', color: '#9de360' }}
+          >
+            {user.name[0]}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">{user.name}</p>
+            <p className="text-xs truncate" style={{ color: 'rgba(240,244,236,0.45)' }}>
+              DNI: {user.dni} · {user.phone}
+            </p>
+          </div>
+          <span className="font-mono text-sm flex-shrink-0" style={{ color: '#9de360' }}>
+            {user.points.toLocaleString()} pts
+          </span>
+        </button>
+      ))}
+    </motion.div>
+  );
+}
+
 function PreviewBox({ amount, paymentMethod, multiplier, config }) {
   if (!amount || !config || parseFloat(amount) <= 0) return null;
 
@@ -149,7 +186,8 @@ function PreviewBox({ amount, paymentMethod, multiplier, config }) {
 export default function AdminPurchases() {
   const queryClient = useQueryClient();
   const [showScanner, setShowScanner] = useState(false);
-  const [dniSearch, setDniSearch] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   const [foundUser, setFoundUser] = useState(null);
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('TRANSFER');
@@ -173,6 +211,7 @@ export default function AdminPurchases() {
     mutationFn: (qrCode) => api.get(`/api/purchases/scan/${qrCode.trim()}`).then(r => r.data.user),
     onSuccess: (user) => {
       setFoundUser(user);
+      setSearchResults([]);
       setShowScanner(false);
       toast.success(`✅ ${user.name}`);
       setTimeout(() => amountRef.current?.focus(), 200);
@@ -183,18 +222,33 @@ export default function AdminPurchases() {
     },
   });
 
-  const findByDNI = useMutation({
-    mutationFn: (dni) =>
-      api.get(`/api/admin/clients?search=${dni.trim()}&limit=1`).then(r => r.data.users[0]),
-    onSuccess: (user) => {
-      if (!user) return toast.error('Cliente no encontrado');
-      setFoundUser(user);
-      setDniSearch('');
-      toast.success(`✅ ${user.name}`);
-      setTimeout(() => amountRef.current?.focus(), 200);
+  const findBySearch = useMutation({
+    mutationFn: (q) =>
+      api.get(`/api/admin/clients?search=${encodeURIComponent(q.trim())}&limit=5`).then(r => r.data.users),
+    onSuccess: (users) => {
+      if (!users || users.length === 0) {
+        toast.error('No se encontró ningún cliente');
+        setSearchResults([]);
+        return;
+      }
+      if (users.length === 1) {
+        // Un solo resultado → seleccionar directo
+        handleSelectUser(users[0]);
+      } else {
+        // Varios → mostrar lista para elegir
+        setSearchResults(users);
+      }
     },
     onError: () => toast.error('Error al buscar'),
   });
+
+  const handleSelectUser = (user) => {
+    setFoundUser(user);
+    setSearchResults([]);
+    setSearch('');
+    toast.success(`✅ ${user.name}`);
+    setTimeout(() => amountRef.current?.focus(), 200);
+  };
 
   const registerPurchase = useMutation({
     mutationFn: (data) => api.post('/api/purchases', data),
@@ -205,7 +259,7 @@ export default function AdminPurchases() {
       setNotes('');
       setPaymentMethod('TRANSFER');
       setMultiplier(1);
-      setPage(1); // volver a página 1 para ver la compra nueva
+      setPage(1);
       queryClient.invalidateQueries({ queryKey: ['admin-purchases'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
     },
@@ -260,33 +314,46 @@ export default function AdminPurchases() {
 
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
-                <span className="text-xs" style={{ color: 'rgba(240,244,236,0.30)' }}>o DNI</span>
+                <span className="text-xs" style={{ color: 'rgba(240,244,236,0.30)' }}>o buscar</span>
                 <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
               </div>
 
               <form
-                onSubmit={(e) => { e.preventDefault(); if (dniSearch.trim()) findByDNI.mutate(dniSearch); }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (search.trim()) findBySearch.mutate(search);
+                }}
                 className="flex gap-2"
               >
                 <input
-                  type="number"
+                  type="text"
                   className="input flex-1"
-                  placeholder="Ingresá el DNI..."
-                  value={dniSearch}
-                  onChange={e => setDniSearch(e.target.value)}
+                  placeholder="Nombre o DNI..."
+                  value={search}
+                  onChange={e => {
+                    setSearch(e.target.value);
+                    setSearchResults([]); // limpiar resultados al escribir
+                  }}
                 />
                 <button
                   type="submit"
                   className="btn-primary px-4 flex-shrink-0"
-                  disabled={findByDNI.isPending || !dniSearch.trim()}
+                  disabled={findBySearch.isPending || !search.trim()}
                   style={{ minWidth: '48px' }}
                 >
-                  {findByDNI.isPending ? '⏳' : '🔍'}
+                  {findBySearch.isPending ? '⏳' : '🔍'}
                 </button>
               </form>
+
+              {/* Resultados múltiples */}
+              <AnimatePresence>
+                {searchResults.length > 1 && (
+                  <UserResults users={searchResults} onSelect={handleSelectUser} />
+                )}
+              </AnimatePresence>
             </>
           ) : (
-            <UserCard user={foundUser} onClear={() => setFoundUser(null)} />
+            <UserCard user={foundUser} onClear={() => { setFoundUser(null); setSearchResults([]); }} />
           )}
         </div>
 
@@ -409,10 +476,9 @@ export default function AdminPurchases() {
           </button>
         </div>
 
-        {/* ===== COMPRAS RECIENTES CON PAGINACIÓN ===== */}
+        {/* COMPRAS RECIENTES CON PAGINACIÓN */}
         {(purchases.length > 0 || total > 0) && (
           <div>
-            {/* Header */}
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-semibold text-white">Compras recientes</h3>
@@ -426,7 +492,6 @@ export default function AdminPurchases() {
               )}
             </div>
 
-            {/* Lista */}
             <div className="card divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
               {purchases.map(p => (
                 <motion.div
@@ -477,17 +542,13 @@ export default function AdminPurchases() {
               ))}
             </div>
 
-            {/* Paginación */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-4 gap-3">
-                {/* Info */}
                 <p className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>
                   Página {page} de {totalPages}
                 </p>
 
-                {/* Controles */}
                 <div className="flex items-center gap-2">
-                  {/* Anterior */}
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1 || isFetching}
@@ -497,10 +558,8 @@ export default function AdminPurchases() {
                     ←
                   </button>
 
-                  {/* Números de página */}
                   <div className="flex gap-1">
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      // Calcular qué páginas mostrar centradas en la actual
                       let pageNum;
                       if (totalPages <= 5) {
                         pageNum = i + 1;
@@ -511,7 +570,6 @@ export default function AdminPurchases() {
                       } else {
                         pageNum = page - 2 + i;
                       }
-
                       const isActive = pageNum === page;
                       return (
                         <button
@@ -534,7 +592,6 @@ export default function AdminPurchases() {
                     })}
                   </div>
 
-                  {/* Siguiente */}
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages || isFetching}
@@ -545,7 +602,6 @@ export default function AdminPurchases() {
                   </button>
                 </div>
 
-                {/* Ir a página */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs" style={{ color: 'rgba(240,244,236,0.35)' }}>Ir a</span>
                   <input
