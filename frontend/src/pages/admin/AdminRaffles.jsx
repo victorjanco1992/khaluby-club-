@@ -99,7 +99,7 @@ function RaffleFormModal({ raffle, onClose, onSaved }) {
 
 export default function AdminRaffles() {
   const queryClient = useQueryClient();
-  const [modal, setModal] = useState(null); // null | 'create' | raffle object
+  const [modal, setModal] = useState(null);
 
   const { data } = useQuery({
     queryKey: ['admin-raffles'],
@@ -109,6 +109,13 @@ export default function AdminRaffles() {
   const activateMutation = useMutation({
     mutationFn: (id) => api.patch(`/api/raffles/${id}/activate`),
     onSuccess: () => { toast.success('Sorteo activado'); queryClient.invalidateQueries({ queryKey: ['admin-raffles'] }); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+  });
+
+  // ✅ Desactivar un sorteo activo (vuelve a PENDING sin borrar participantes)
+  const deactivateMutation = useMutation({
+    mutationFn: (id) => api.put(`/api/raffles/${id}`, { status: 'PENDING' }),
+    onSuccess: () => { toast.success('Sorteo desactivado'); queryClient.invalidateQueries({ queryKey: ['admin-raffles'] }); },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   });
 
@@ -152,7 +159,6 @@ export default function AdminRaffles() {
             className="card p-5"
           >
             <div className="flex gap-4">
-              {/* Prize image */}
               {raffle.prizeImage && (
                 <img
                   src={raffle.prizeImage}
@@ -181,7 +187,6 @@ export default function AdminRaffles() {
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex flex-wrap gap-2 mt-3">
                   <button
                     onClick={() => setModal(raffle)}
@@ -189,6 +194,8 @@ export default function AdminRaffles() {
                   >
                     ✏️ Editar
                   </button>
+
+                  {/* ✅ Activar — disponible siempre que esté PENDING */}
                   {raffle.status === 'PENDING' && (
                     <button
                       onClick={() => activateMutation.mutate(raffle.id)}
@@ -198,6 +205,8 @@ export default function AdminRaffles() {
                       ▶ Activar
                     </button>
                   )}
+
+                  {/* ✅ Sortear — disponible para cualquier sorteo ACTIVE */}
                   {raffle.status === 'ACTIVE' && (
                     <Link
                       to={`/admin/sorteos/${raffle.id}/realizar`}
@@ -206,14 +215,31 @@ export default function AdminRaffles() {
                       🎰 Sortear
                     </Link>
                   )}
+
+                  {/* ✅ Desactivar — vuelve a PENDING sin borrar participantes */}
+                  {raffle.status === 'ACTIVE' && (
+                    <button
+                      onClick={() => {
+                        if (confirm('¿Desactivar este sorteo? Los participantes se conservan.'))
+                          deactivateMutation.mutate(raffle.id);
+                      }}
+                      disabled={deactivateMutation.isPending}
+                      className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/25 text-xs py-1.5 px-3 rounded-xl transition-all"
+                    >
+                      ⏸ Desactivar
+                    </button>
+                  )}
+
+                  {/* Resetear — borra participantes */}
                   {(raffle.status === 'ACTIVE' || raffle.status === 'FINISHED') && (
                     <button
-                      onClick={() => { if (confirm('¿Resetear participaciones?')) resetMutation.mutate(raffle.id); }}
-                      className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/25 text-xs py-1.5 px-3 rounded-xl transition-all"
+                      onClick={() => { if (confirm('¿Resetear participaciones? Esto borra todos los números asignados.')) resetMutation.mutate(raffle.id); }}
+                      className="bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/25 text-xs py-1.5 px-3 rounded-xl transition-all"
                     >
                       ↺ Resetear
                     </button>
                   )}
+
                   {raffle.status !== 'ACTIVE' && (
                     <button
                       onClick={() => { if (confirm('¿Eliminar este sorteo?')) deleteMutation.mutate(raffle.id); }}
