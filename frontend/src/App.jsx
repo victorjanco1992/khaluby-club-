@@ -5,6 +5,7 @@ import AdminLayout from './components/layout/AdminLayout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import SorteoPublico from './pages/SorteoPublico.jsx';
+import HowItWorks from './pages/HowItWorks.jsx';
 import ClientDashboard from './pages/client/ClientDashboard.jsx';
 import ClientRaffles from './pages/client/ClientRaffles.jsx';
 import ClientRewards from './pages/client/ClientRewards.jsx';
@@ -21,12 +22,14 @@ import AdminConfig from './pages/admin/AdminConfig.jsx';
 import NotificationOverlay from './components/NotificationOverlay.jsx';
 import LiveRaffleOverlay from './components/LiveRaffleOverlay.jsx';
 import InstallPWA from './components/InstallPWA.jsx';
+
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { isAuthenticated, isAdmin } = useAuthStore();
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
   if (adminOnly && !isAdmin()) return <Navigate to="/dashboard" replace />;
   return children;
 };
+
 export default function App() {
   const { isAuthenticated, isAdmin } = useAuthStore();
   return (
@@ -47,7 +50,11 @@ export default function App() {
           path="/register"
           element={isAuthenticated() ? <Navigate to="/dashboard" /> : <RegisterPage />}
         />
-        <Route path="/sorteo" element={<SorteoPublico />} />
+
+        {/* ✅ Ahora requiere estar logueado (cliente o admin) */}
+        <Route path="/sorteo" element={<ProtectedRoute><SorteoPublico /></ProtectedRoute>} />
+        <Route path="/como-funciona" element={<ProtectedRoute><HowItWorks /></ProtectedRoute>} />
+
         <Route path="/" element={<ProtectedRoute><ClientLayout /></ProtectedRoute>}>
           <Route path="dashboard" element={<ClientDashboard />} />
           <Route path="sorteos" element={<ClientRaffles />} />
