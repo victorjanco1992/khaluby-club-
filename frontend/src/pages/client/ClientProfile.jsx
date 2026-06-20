@@ -6,6 +6,7 @@ import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
 import PushNotifications from '../../components/PushNotifications.jsx';
 import { useInstallStore } from '../../stores/installStore.js';
+import { Link } from 'react-router-dom';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -404,6 +405,18 @@ export default function ClientProfile() {
           )}
         </div>
       )}
+
+      {/* Cómo funciona */}
+      <Link to="/como-funciona">
+        <div className="card p-4 flex items-center gap-3 transition-all">
+          <span className="text-2xl">📖</span>
+          <div>
+            <p className="font-semibold text-sm text-white">Cómo funciona Khaluby Club</p>
+            <p className="text-xs" style={{ color: 'rgba(240,244,236,0.45)' }}>Puntos, sorteos y canjes</p>
+          </div>
+          <span className="ml-auto text-lg" style={{ color: 'rgba(240,244,236,0.25)' }}>→</span>
+        </div>
+      </Link>
 
       {/* Notificaciones push */}
       <div className="card p-5">
