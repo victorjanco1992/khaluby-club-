@@ -31,7 +31,6 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 
 export default function App() {
   const { isAuthenticated, isAdmin } = useAuthStore();
-
   return (
     <>
       <InstallPWA />
@@ -50,7 +49,10 @@ export default function App() {
           path="/register"
           element={isAuthenticated() ? <Navigate to="/dashboard" /> : <RegisterPage />}
         />
-        <Route path="/sorteo" element={<SorteoPublico />} />
+
+        {/* ✅ Ahora requiere estar logueado (cliente o admin) */}
+        <Route path="/sorteo" element={<ProtectedRoute><SorteoPublico /></ProtectedRoute>} />
+
         <Route path="/" element={<ProtectedRoute><ClientLayout /></ProtectedRoute>}>
           <Route path="dashboard" element={<ClientDashboard />} />
           <Route path="sorteos" element={<ClientRaffles />} />
