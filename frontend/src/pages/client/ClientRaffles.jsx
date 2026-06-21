@@ -13,12 +13,81 @@ const STATUS_MAP = {
   FINISHED: { label: 'Finalizado',   style: { background: 'rgba(0,0,0,0.75)',      color: 'rgba(240,244,236,0.80)', border: '2px solid rgba(255,255,255,0.30)', backdropFilter: 'blur(4px)', fontWeight: 600 } },
 };
 
+// ── Render de descripción: respeta saltos de línea, soporta **resaltado** y viñetas con "- " ──
+function RichDescription({ text }) {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+
+  // Renderiza el contenido de una línea soportando **resaltado**
+  const renderInline = (line, keyPrefix) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={`${keyPrefix}-${i}`} style={{ color: '#9de360', fontWeight: 700 }}>
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return <span key={`${keyPrefix}-${i}`}>{part}</span>;
+    });
+  };
+
+  // Agrupar líneas consecutivas que empiezan con "- " o "• " en una sola lista
+  const blocks = [];
+  let currentList = null;
+
+  lines.forEach((line, idx) => {
+    const isBullet = /^[\-•]\s+/.test(line.trim());
+    if (isBullet) {
+      const content = line.trim().replace(/^[\-•]\s+/, '');
+      if (!currentList) {
+        currentList = { type: 'list', items: [] };
+        blocks.push(currentList);
+      }
+      currentList.items.push(content);
+    } else {
+      currentList = null;
+      blocks.push({ type: 'line', content: line });
+    }
+  });
+
+  return (
+    <div className="text-sm mt-1" style={{ color: 'rgba(240,244,236,0.65)' }}>
+      {blocks.map((block, blockIdx) => {
+        if (block.type === 'list') {
+          return (
+            <ul key={blockIdx} className="my-1.5 space-y-1">
+              {block.items.map((item, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="flex-shrink-0 mt-0.5" style={{ color: '#9de360' }}>•</span>
+                  <span>{renderInline(item, `${blockIdx}-${i}`)}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        // Línea normal — vacía o con texto
+        if (block.content.trim() === '') {
+          return <div key={blockIdx} className="h-2" />;
+        }
+        return (
+          <p key={blockIdx} className="leading-relaxed">
+            {renderInline(block.content, blockIdx)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ClientRaffles() {
   const [liveWinner, setLiveWinner] = useState(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [currentNum, setCurrentNum] = useState(null);
-  const [expandedRaffle, setExpandedRaffle] = useState(null);       // qué sorteo tiene números expandidos
-  const [expandedParticipants, setExpandedParticipants] = useState(null); // qué sorteo tiene participantes abiertos
+  const [expandedRaffle, setExpandedRaffle] = useState(null);
+  const [expandedParticipants, setExpandedParticipants] = useState(null);
 
   const { data, refetch } = useQuery({
     queryKey: ['raffles-client'],
@@ -39,7 +108,6 @@ export default function ClientRaffles() {
     enabled: !!data?.raffles?.some(r => r.status === 'FINISHED'),
   });
 
-  // Query para participantes del sorteo expandido
   const { data: expandedDetail, isLoading: loadingParticipants } = useQuery({
     queryKey: ['raffle-participants', expandedParticipants],
     queryFn: () => api.get(`/api/raffles/${expandedParticipants}`).then(r => r.data.raffle),
@@ -235,11 +303,8 @@ export default function ClientRaffles() {
                       <h3 className="font-display font-bold text-lg text-white leading-tight">
                         {raffle.title}
                       </h3>
-                      {raffle.description && (
-                        <p className="text-sm mt-1" style={{ color: 'rgba(240,244,236,0.65)' }}>
-                          {raffle.description}
-                        </p>
-                      )}
+                      {/* ✅ Ahora respeta saltos de línea y soporta **resaltado** */}
+                      <RichDescription text={raffle.description} />
                     </div>
                     {!raffle.prizeImage && (
                       <span className="badge font-semibold flex-shrink-0" style={status.style}>
@@ -298,7 +363,7 @@ export default function ClientRaffles() {
                     </div>
                   )}
 
-                  {/* ===== MIS NÚMEROS CON EXPAND ===== */}
+                  {/* MIS NÚMEROS CON EXPAND */}
                   {raffle.status === 'ACTIVE' && myNums.length > 0 && (
                     <div>
                       <div className="flex items-center justify-between mb-2">
@@ -348,7 +413,7 @@ export default function ClientRaffles() {
                     </div>
                   )}
 
-                  {/* ===== PARTICIPANTES CON EXPAND ===== */}
+                  {/* PARTICIPANTES CON EXPAND */}
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
                     <button
                       onClick={() => setExpandedParticipants(isParticipantsExpanded ? null : raffle.id)}
