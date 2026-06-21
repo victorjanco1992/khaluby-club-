@@ -108,7 +108,7 @@ export default function ClientRaffles() {
       <div className="flex items-center justify-between">
         <h2 className="font-display font-bold text-2xl text-white">Sorteos</h2>
         <Link to="/sorteo" target="_blank" className="text-sm font-medium" style={{ color: '#9de360' }}>
-          🏆 Ver público
+          🏆 Ver ganador
         </Link>
       </div>
 
