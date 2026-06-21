@@ -156,19 +156,19 @@ export default function SorteoPublico() {
               </motion.div>
               <h2 className="font-display font-black text-5xl text-white">¡Ganador!</h2>
 
-              {/* Imagen del premio */}
+              {/* Imagen del premio — completa, sin recortar */}
               {liveWinner.prizeImage && (
                 <motion.div
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.3 }}
                   className="rounded-2xl overflow-hidden border max-w-sm mx-auto"
-                  style={{ borderColor: 'rgba(139,92,246,0.3)' }}
+                  style={{ borderColor: 'rgba(139,92,246,0.3)', background: 'rgba(255,255,255,0.03)' }}
                 >
                   <img
                     src={liveWinner.prizeImage}
                     alt={liveWinner.prize}
-                    className="w-full h-44 object-cover"
+                    className="w-full max-h-72 object-contain"
                     onError={e => { e.target.style.display = 'none'; }}
                   />
                 </motion.div>
@@ -217,13 +217,16 @@ export default function SorteoPublico() {
                   </p>
                 </div>
 
-                {/* Imagen del premio */}
+                {/* Imagen del premio — completa, sin recortar */}
                 {raffle.prizeImage && (
-                  <div className="rounded-2xl overflow-hidden border max-w-sm mx-auto" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                  <div
+                    className="rounded-2xl overflow-hidden border max-w-sm mx-auto"
+                    style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}
+                  >
                     <img
                       src={raffle.prizeImage}
                       alt={raffle.prize}
-                      className="w-full h-48 object-cover"
+                      className="w-full max-h-72 object-contain"
                       onError={e => { e.target.style.display = 'none'; }}
                     />
                   </div>
