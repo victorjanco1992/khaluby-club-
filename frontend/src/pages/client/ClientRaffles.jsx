@@ -105,12 +105,23 @@ export default function ClientRaffles() {
 
   return (
     <div className="p-4 space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display font-bold text-2xl text-white">Sorteos</h2>
-        <Link to="/sorteo" target="_blank" className="text-sm font-medium" style={{ color: '#9de360' }}>
-          🏆 Ver ganador
-        </Link>
-      </div>
+  <div className="flex items-center justify-between">
+    <h2 className="font-display font-bold text-2xl text-white">Sorteos</h2>
+    <Link
+      to="/sorteo"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+      style={{
+        background: 'rgba(92,181,22,0.15)',
+        color: '#9de360',
+        border: '1px solid rgba(92,181,22,0.25)',
+      }}
+    >
+      🏆 Ver ganador
+    </Link>
+  </div>
+</div>
 
       {/* Overlay sorteo en vivo */}
       <AnimatePresence>
