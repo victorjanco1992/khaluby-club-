@@ -5,7 +5,7 @@ import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
 
 function CreateClientModal({ onClose, onCreated }) {
-  const [form, setForm] = useState({ name: '', dni: '', phone: '' });
+  const [form, setForm] = useState({ name: '', nickname: '', dni: '', phone: '' });
 
   const createMutation = useMutation({
     mutationFn: (data) => api.post('/api/admin/clients', data),
@@ -61,6 +61,13 @@ function CreateClientModal({ onClose, onCreated }) {
             />
           </div>
           <div>
+            <label className="label">Apodo / alias <span style={{ color: 'rgba(240,244,236,0.35)' }}>(opcional, solo lo ves vos)</span></label>
+            <input
+              type="text" className="input" placeholder="Ej: 'El de la moto roja'"
+              value={form.nickname} onChange={set('nickname')} maxLength={50}
+            />
+          </div>
+          <div>
             <label className="label">DNI</label>
             <input
               type="text" inputMode="numeric" className="input" placeholder="30123456"
@@ -94,6 +101,7 @@ function CreateClientModal({ onClose, onCreated }) {
 function EditClientModal({ client, onClose, onSaved }) {
   const [form, setForm] = useState({
     name: client.name,
+    nickname: client.nickname || '',
     phone: client.phone,
     email: client.email || '',
     points: client.points,
@@ -129,7 +137,6 @@ function EditClientModal({ client, onClose, onSaved }) {
         style={{ background: '#0d1a0a', border: '1px solid rgba(92,181,22,0.15)', maxHeight: '90vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle bar mobile */}
         <div className="w-10 h-1 rounded-full mx-auto mb-4 sm:hidden"
           style={{ background: 'rgba(255,255,255,0.15)' }} />
 
@@ -144,7 +151,6 @@ function EditClientModal({ client, onClose, onSaved }) {
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex rounded-xl p-1 gap-1 mb-4"
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           {[{ key: 'info', label: '👤 Datos' }, { key: 'password', label: '🔐 Contraseña' }].map(({ key, label }) => (
@@ -168,6 +174,10 @@ function EditClientModal({ client, onClose, onSaved }) {
             <div>
               <label className="label">Nombre</label>
               <input type="text" className="input" value={form.name} onChange={set('name')} required />
+            </div>
+            <div>
+              <label className="label">Apodo / alias <span style={{ color: 'rgba(240,244,236,0.35)' }}>(solo lo ves vos)</span></label>
+              <input type="text" className="input" placeholder="Ej: 'El de la moto roja'" value={form.nickname} onChange={set('nickname')} maxLength={50} />
             </div>
             <div>
               <label className="label">Teléfono</label>
@@ -296,7 +306,7 @@ export default function AdminClients() {
         <input
           type="text"
           className="input pl-11"
-          placeholder="Buscar por nombre, DNI o teléfono..."
+          placeholder="Buscar por nombre, apodo, DNI o teléfono..."
           value={search}
           onChange={handleSearch}
         />
@@ -337,7 +347,17 @@ export default function AdminClients() {
                   {client.name[0]}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-white truncate">{client.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-white truncate">{client.name}</p>
+                    {client.nickname && (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: 'rgba(167,139,250,0.15)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.25)' }}
+                      >
+                        "{client.nickname}"
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs truncate" style={{ color: 'rgba(240,244,236,0.45)' }}>
                     {client.dni} · {client.phone}
                   </p>
