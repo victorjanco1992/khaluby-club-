@@ -15,6 +15,72 @@ const LEVELS = [
 
 const getLevel = (pts) => LEVELS.find(l => pts >= l.min && pts <= l.max) || LEVELS[0];
 
+// ── Render de texto: respeta saltos de línea, soporta **resaltado** y viñetas con "- " ──
+function RichText({ text, className = '', colorMuted = 'rgba(240,244,236,0.65)', colorHighlight = '#9de360' }) {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+
+  const renderInline = (line, keyPrefix) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={`${keyPrefix}-${i}`} style={{ color: colorHighlight, fontWeight: 700 }}>
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return <span key={`${keyPrefix}-${i}`}>{part}</span>;
+    });
+  };
+
+  const blocks = [];
+  let currentList = null;
+
+  lines.forEach((line) => {
+    const isBullet = /^[\-•]\s+/.test(line.trim());
+    if (isBullet) {
+      const content = line.trim().replace(/^[\-•]\s+/, '');
+      if (!currentList) {
+        currentList = { type: 'list', items: [] };
+        blocks.push(currentList);
+      }
+      currentList.items.push(content);
+    } else {
+      currentList = null;
+      blocks.push({ type: 'line', content: line });
+    }
+  });
+
+  return (
+    <div className={className} style={{ color: colorMuted }}>
+      {blocks.map((block, blockIdx) => {
+        if (block.type === 'list') {
+          return (
+            <ul key={blockIdx} className="my-1.5 space-y-1">
+              {block.items.map((item, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="flex-shrink-0 mt-0.5" style={{ color: colorHighlight }}>•</span>
+                  <span>{renderInline(item, `${blockIdx}-${i}`)}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        if (block.content.trim() === '') {
+          return <div key={blockIdx} className="h-2" />;
+        }
+        return (
+          <p key={blockIdx} className="leading-relaxed">
+            {renderInline(block.content, blockIdx)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── PUNTOS ───────────────────────────────────────────────────────────────────
 function PointsCard({ points }) {
   const level = getLevel(points);
@@ -137,7 +203,6 @@ function RewardCard({ reward, points, cooldown, onClick, index }) {
       className="card overflow-hidden cursor-pointer active:scale-[0.98] transition-all"
       style={{ opacity: disabled && outOfStock ? 0.55 : 1 }}
     >
-      {/* Imagen */}
       {reward.image && !imgError ? (
         <div className="relative">
           <img
@@ -148,14 +213,12 @@ function RewardCard({ reward, points, cooldown, onClick, index }) {
           />
           <div className="absolute inset-0"
             style={{ background: 'linear-gradient(to top, rgba(8,13,5,0.90) 0%, transparent 55%)' }} />
-          {/* Badge de puntos sobre la imagen */}
           <div className="absolute bottom-3 left-3">
             <span className="badge text-xs font-bold font-mono"
               style={{ background: 'rgba(167,139,250,0.20)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
               🎁 {reward.pointsCost.toLocaleString()} pts
             </span>
           </div>
-          {/* Badge de estado arriba derecha */}
           <div className="absolute top-3 right-3">
             <span className="badge text-xs font-semibold"
               style={{ background: statusLabel.bg, color: statusLabel.color, border: `1px solid ${statusLabel.border}` }}>
@@ -166,7 +229,6 @@ function RewardCard({ reward, points, cooldown, onClick, index }) {
       ) : null}
 
       <div className="p-4">
-        {/* Sin imagen: badges arriba */}
         {(!reward.image || imgError) && (
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <span className="badge text-xs font-bold font-mono"
@@ -184,15 +246,14 @@ function RewardCard({ reward, points, cooldown, onClick, index }) {
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-white">{reward.name}</h3>
             {reward.description && (
-              <p className="text-sm mt-1 line-clamp-2" style={{ color: 'rgba(240,244,236,0.55)' }}>
-                {reward.description}
-              </p>
+              <div className="text-sm mt-1 line-clamp-2">
+                <RichText text={reward.description} colorMuted="rgba(240,244,236,0.55)" />
+              </div>
             )}
           </div>
           <span style={{ color: 'rgba(240,244,236,0.25)', fontSize: '1.2rem', flexShrink: 0 }}>›</span>
         </div>
 
-        {/* Barra de progreso si no puede pagar */}
         {!canAfford && !outOfStock && (
           <div className="mt-3">
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
@@ -205,7 +266,6 @@ function RewardCard({ reward, points, cooldown, onClick, index }) {
           </div>
         )}
 
-        {/* Stock */}
         <p className="text-xs mt-2" style={{ color: 'rgba(240,244,236,0.28)' }}>
           {reward.stock === -1 ? 'Stock ilimitado' : reward.stock === 0 ? 'Sin stock disponible' : `${reward.stock} disponibles`}
         </p>
@@ -238,11 +298,9 @@ function RewardModal({ reward, points, cooldown, onClose, onRedeem, isPending })
         style={{ background: '#111d0d', border: '1px solid rgba(92,181,22,0.20)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle */}
         <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-0"
           style={{ background: 'rgba(255,255,255,0.12)' }} />
 
-        {/* Imagen o header */}
         {reward.image && !imgError ? (
           <div className="relative mt-2">
             <img
@@ -267,7 +325,6 @@ function RewardModal({ reward, points, cooldown, onClose, onRedeem, isPending })
         )}
 
         <div className="p-6 pt-4">
-          {/* Nombre y costo */}
           <div className="mb-4">
             <span className="badge text-xs font-bold font-mono mb-2"
               style={{ background: 'rgba(167,139,250,0.20)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.35)' }}>
@@ -275,13 +332,12 @@ function RewardModal({ reward, points, cooldown, onClose, onRedeem, isPending })
             </span>
             <h2 className="font-display font-bold text-2xl text-white mt-2">{reward.name}</h2>
             {reward.description && (
-              <p className="mt-2 leading-relaxed" style={{ color: 'rgba(240,244,236,0.65)' }}>
-                {reward.description}
-              </p>
+              <div className="mt-2">
+                <RichText text={reward.description} colorMuted="rgba(240,244,236,0.65)" />
+              </div>
             )}
           </div>
 
-          {/* Resumen de puntos */}
           <div className="rounded-xl p-4 mb-4"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="flex justify-between text-sm mb-1">
@@ -294,7 +350,6 @@ function RewardModal({ reward, points, cooldown, onClose, onRedeem, isPending })
                 -{reward.pointsCost.toLocaleString()}
               </span>
             </div>
-            {/* Barra */}
             <div className="h-2 rounded-full overflow-hidden mb-2"
               style={{ background: 'rgba(255,255,255,0.07)' }}>
               <motion.div
@@ -321,14 +376,12 @@ function RewardModal({ reward, points, cooldown, onClose, onRedeem, isPending })
             </div>
           </div>
 
-          {/* Stock */}
           <p className="text-xs mb-5" style={{ color: 'rgba(240,244,236,0.30)' }}>
             {reward.stock === -1 ? '∞ Stock ilimitado'
               : reward.stock === 0 ? '✕ Sin stock disponible'
               : `${reward.stock} unidades disponibles`}
           </p>
 
-          {/* Aviso cooldown */}
           {onCooldown && (
             <div className="rounded-xl p-3 mb-4"
               style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
@@ -338,7 +391,6 @@ function RewardModal({ reward, points, cooldown, onClose, onRedeem, isPending })
             </div>
           )}
 
-          {/* Botones */}
           <div className="flex gap-3">
             <button onClick={onClose} className="btn-secondary flex-1 py-3">
               Cerrar
@@ -440,7 +492,6 @@ export default function ClientRewards() {
       <PointsCard points={points} />
       <CooldownBanner info={cooldown} />
 
-      {/* Lista de recompensas */}
       <div>
         <h3 className="font-display font-semibold text-lg mb-3 text-white">Disponibles</h3>
         {rewards.length === 0 ? (
@@ -464,7 +515,6 @@ export default function ClientRewards() {
         )}
       </div>
 
-      {/* Historial */}
       {redemptions.length > 0 && (
         <div>
           <h3 className="font-display font-semibold text-lg mb-3 text-white">Historial de canjes</h3>
@@ -505,7 +555,6 @@ export default function ClientRewards() {
         </div>
       )}
 
-      {/* Modal */}
       <AnimatePresence>
         {selected && (
           <RewardModal
