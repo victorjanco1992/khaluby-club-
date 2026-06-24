@@ -305,6 +305,8 @@ function ClientRaffleNumbers({ clientId, isOpen }) {
     </AnimatePresence>
   );
 }
+
+export default function AdminClients() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
