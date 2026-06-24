@@ -18,6 +18,7 @@ model StoreConfig {
 model User {
   id                String    @id @default(uuid())
   name              String
+  nickname          String?
   dni               String    @unique
   phone             String
   email             String?   @unique
