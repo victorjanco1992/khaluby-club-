@@ -49,7 +49,17 @@ function UserCard({ user, onClear }) {
           {user.name[0]}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-white truncate">{user.name}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-white truncate">{user.name}</p>
+            {user.nickname && (
+              <span
+                className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                style={{ background: 'rgba(167,139,250,0.15)', color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.25)' }}
+              >
+                "{user.nickname}"
+              </span>
+            )}
+          </div>
           <p className="text-xs truncate" style={{ color: 'rgba(240,244,236,0.50)' }}>
             DNI: {user.dni} · {user.phone}
           </p>
@@ -79,7 +89,6 @@ function UserCard({ user, onClear }) {
   );
 }
 
-// Lista de resultados cuando hay más de uno
 function UserResults({ users, onSelect }) {
   return (
     <motion.div
@@ -102,7 +111,17 @@ function UserResults({ users, onSelect }) {
             {user.name[0]}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-white truncate">{user.name}</p>
+              {user.nickname && (
+                <span
+                  className="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  style={{ background: 'rgba(167,139,250,0.15)', color: '#c4b5fd' }}
+                >
+                  "{user.nickname}"
+                </span>
+              )}
+            </div>
             <p className="text-xs truncate" style={{ color: 'rgba(240,244,236,0.45)' }}>
               DNI: {user.dni} · {user.phone}
             </p>
@@ -222,6 +241,7 @@ export default function AdminPurchases() {
     },
   });
 
+  // La búsqueda ya incluye nickname desde el backend
   const findBySearch = useMutation({
     mutationFn: (q) =>
       api.get(`/api/admin/clients?search=${encodeURIComponent(q.trim())}&limit=5`).then(r => r.data.users),
@@ -232,10 +252,8 @@ export default function AdminPurchases() {
         return;
       }
       if (users.length === 1) {
-        // Un solo resultado → seleccionar directo
         handleSelectUser(users[0]);
       } else {
-        // Varios → mostrar lista para elegir
         setSearchResults(users);
       }
     },
@@ -289,7 +307,6 @@ export default function AdminPurchases() {
           </p>
         </div>
 
-        {/* PASO 1 */}
         <div className="card p-4 space-y-3">
           <h3 className="font-semibold text-white text-sm uppercase tracking-wider"
             style={{ color: 'rgba(240,244,236,0.60)' }}>
@@ -328,11 +345,11 @@ export default function AdminPurchases() {
                 <input
                   type="text"
                   className="input flex-1"
-                  placeholder="Nombre o DNI..."
+                  placeholder="Nombre, apodo o DNI..."
                   value={search}
                   onChange={e => {
                     setSearch(e.target.value);
-                    setSearchResults([]); // limpiar resultados al escribir
+                    setSearchResults([]);
                   }}
                 />
                 <button
@@ -345,7 +362,6 @@ export default function AdminPurchases() {
                 </button>
               </form>
 
-              {/* Resultados múltiples */}
               <AnimatePresence>
                 {searchResults.length > 1 && (
                   <UserResults users={searchResults} onSelect={handleSelectUser} />
@@ -357,7 +373,6 @@ export default function AdminPurchases() {
           )}
         </div>
 
-        {/* PASO 2 */}
         <div className={`card p-4 space-y-5 ${!foundUser ? 'opacity-40 pointer-events-none' : ''}`}>
           <h3 className="font-semibold text-sm uppercase tracking-wider"
             style={{ color: 'rgba(240,244,236,0.60)' }}>
@@ -476,7 +491,6 @@ export default function AdminPurchases() {
           </button>
         </div>
 
-        {/* COMPRAS RECIENTES CON PAGINACIÓN */}
         {(purchases.length > 0 || total > 0) && (
           <div>
             <div className="flex items-center justify-between mb-3">
