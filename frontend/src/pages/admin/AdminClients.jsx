@@ -243,12 +243,74 @@ function EditClientModal({ client, onClose, onSaved }) {
   );
 }
 
-export default function AdminClients() {
+// Desplegable de números de sorteo activos para un cliente
+function ClientRaffleNumbers({ clientId, isOpen }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['client-raffle-numbers', clientId],
+    queryFn: () => api.get(`/api/admin/clients/${clientId}/raffle-numbers`).then(r => r.data.raffles),
+    enabled: isOpen,
+  });
+
+  const raffles = data || [];
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="overflow-hidden"
+        >
+          <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            {isLoading ? (
+              <p className="text-xs py-2" style={{ color: 'rgba(240,244,236,0.30)' }}>Cargando...</p>
+            ) : raffles.length === 0 ? (
+              <p className="text-xs py-2" style={{ color: 'rgba(240,244,236,0.30)' }}>
+                Sin números en sorteos activos
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {raffles.map(r => (
+                  <div key={r.raffleId} className="rounded-xl p-3"
+                    style={{ background: 'rgba(92,181,22,0.06)', border: '1px solid rgba(92,181,22,0.15)' }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-white">{r.title}</p>
+                      <span className="text-xs" style={{ color: 'rgba(240,244,236,0.40)' }}>
+                        {r.numbers.length} número{r.numbers.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {r.numbers.map(n => (
+                        <span
+                          key={n}
+                          className="font-mono text-xs px-2 py-1 rounded-lg"
+                          style={n === r.winnerNumber
+                            ? { background: 'rgba(245,158,11,0.20)', color: '#fde68a', border: '1px solid rgba(245,158,11,0.35)' }
+                            : { background: 'rgba(92,181,22,0.15)', color: '#9de360', border: '1px solid rgba(92,181,22,0.28)' }
+                          }
+                        >
+                          #{n}{n === r.winnerNumber ? ' 🏆' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [editingClient, setEditingClient] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [expandedClient, setExpandedClient] = useState(null);
 
   const handleSearch = (e) => {
     const val = e.target.value;
@@ -390,6 +452,14 @@ export default function AdminClients() {
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
                   <button
+                    onClick={() => setExpandedClient(expandedClient === client.id ? null : client.id)}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                    style={{ background: 'rgba(167,139,250,0.10)', color: '#c4b5fd' }}
+                    title="Ver números de sorteo"
+                  >
+                    🎰
+                  </button>
+                  <button
                     onClick={() => setEditingClient(client)}
                     className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
                     style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(240,244,236,0.60)' }}
@@ -407,6 +477,9 @@ export default function AdminClients() {
                   </button>
                 </div>
               </div>
+
+              {/* Números de sorteo desplegables */}
+              <ClientRaffleNumbers clientId={client.id} isOpen={expandedClient === client.id} />
             </motion.div>
           ))}
         </div>
