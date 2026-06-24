@@ -81,7 +81,7 @@ adminRouter.post('/config/preview', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// Clientes
+// Clientes — búsqueda ahora también incluye el apodo/alias (solo visible para admin)
 adminRouter.get('/clients', async (req, res, next) => {
   try {
     const { search, page = 1, limit = 20 } = req.query;
@@ -90,6 +90,7 @@ adminRouter.get('/clients', async (req, res, next) => {
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
+        { nickname: { contains: search, mode: 'insensitive' } }, // ✅ búsqueda por apodo
         { dni: { contains: search } },
         { phone: { contains: search } },
       ];
@@ -101,7 +102,7 @@ adminRouter.get('/clients', async (req, res, next) => {
         skip,
         take: Number(limit),
         select: {
-          id: true, name: true, dni: true, phone: true, email: true,
+          id: true, name: true, nickname: true, dni: true, phone: true, email: true,
           points: true, totalSpent: true, isActive: true, createdAt: true,
           lastRedemptionAt: true,
           _count: { select: { purchases: true, raffleEntries: true } },
@@ -118,6 +119,7 @@ adminRouter.post('/clients', async (req, res, next) => {
   try {
     const schema = z.object({
       name: z.string().min(2, 'Nombre muy corto'),
+      nickname: z.string().max(50).optional().or(z.literal('')),
       dni: z.string().min(6, 'DNI inválido').max(10, 'DNI inválido'),
       phone: z.string().min(8, 'Teléfono inválido'),
     });
@@ -133,6 +135,7 @@ adminRouter.post('/clients', async (req, res, next) => {
     const user = await prisma.user.create({
       data: {
         name: data.name,
+        nickname: data.nickname || null,
         dni: data.dni,
         phone: data.phone,
         password: hashed,
@@ -140,7 +143,7 @@ adminRouter.post('/clients', async (req, res, next) => {
         qrCode: uuidv4(),
       },
       select: {
-        id: true, name: true, dni: true, phone: true, email: true,
+        id: true, name: true, nickname: true, dni: true, phone: true, email: true,
         points: true, totalSpent: true, isActive: true, createdAt: true,
       },
     });
@@ -171,6 +174,7 @@ adminRouter.put('/clients/:id', async (req, res, next) => {
   try {
     const schema = z.object({
       name: z.string().min(2).optional(),
+      nickname: z.string().max(50).optional().or(z.literal('')),
       phone: z.string().min(8).optional(),
       email: z.string().email().optional().or(z.literal('')),
       points: z.number().int().min(0).optional(),
@@ -178,8 +182,12 @@ adminRouter.put('/clients/:id', async (req, res, next) => {
     const data = schema.parse(req.body);
     const updated = await prisma.user.update({
       where: { id: req.params.id },
-      data: { ...data, email: data.email || undefined },
-      select: { id: true, name: true, dni: true, phone: true, email: true, points: true, totalSpent: true, isActive: true },
+      data: {
+        ...data,
+        email: data.email || undefined,
+        nickname: data.nickname !== undefined ? (data.nickname || null) : undefined,
+      },
+      select: { id: true, name: true, nickname: true, dni: true, phone: true, email: true, points: true, totalSpent: true, isActive: true },
     });
     res.json({ user: updated, message: 'Cliente actualizado' });
   } catch (error) { next(error); }
