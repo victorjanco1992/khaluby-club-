@@ -217,6 +217,43 @@ adminRouter.delete('/clients/:id', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Números de sorteo de un cliente, agrupados por sorteo (solo activos por defecto)
+adminRouter.get('/clients/:id/raffle-numbers', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { all } = req.query; // ?all=1 para incluir también finalizados/pendientes
+
+    const entries = await prisma.raffleEntry.findMany({
+      where: {
+        userId: id,
+        ...(all ? {} : { raffle: { status: 'ACTIVE' } }),
+      },
+      include: {
+        raffle: { select: { id: true, title: true, status: true, winnerNumber: true } },
+      },
+      orderBy: { number: 'asc' },
+    });
+
+    // Agrupar por sorteo
+    const byRaffle = {};
+    for (const entry of entries) {
+      const rid = entry.raffle.id;
+      if (!byRaffle[rid]) {
+        byRaffle[rid] = {
+          raffleId: rid,
+          title: entry.raffle.title,
+          status: entry.raffle.status,
+          winnerNumber: entry.raffle.winnerNumber,
+          numbers: [],
+        };
+      }
+      byRaffle[rid].numbers.push(entry.number);
+    }
+
+    res.json({ raffles: Object.values(byRaffle) });
+  } catch (error) { next(error); }
+});
+
 // Obtener categorías de promociones
 adminRouter.get('/promotion-categories', async (req, res, next) => {
   try {
