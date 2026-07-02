@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import confetti from 'canvas-confetti';
 import api from '../../lib/api.js';
+import { useAuthStore } from '../../stores/authStore.js';
 import { getSocket } from '../../lib/socket.js';
 
 const STATUS_MAP = {
